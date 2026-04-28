@@ -11,6 +11,7 @@ export const deliverableStatusColor: Record<DeliverableStatus, BadgeColor> = {
   approved: 'green',
   revision_requested: 'red',
   cancelled: 'red',
+  rejected: 'red',
 };
 
 export const deliverableStatusLabel: Record<DeliverableStatus, string> = {
@@ -22,6 +23,7 @@ export const deliverableStatusLabel: Record<DeliverableStatus, string> = {
   approved: 'Approved',
   revision_requested: 'Revision Requested',
   cancelled: 'Cancelled',
+  rejected: 'Rejected',
 };
 
 export const projectStatusColor: Record<ProjectStatus, BadgeColor> = {

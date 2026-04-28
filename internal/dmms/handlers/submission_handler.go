@@ -14,18 +14,19 @@ import (
 type SubmissionHandler struct {
 	submissions  *repository.SubmissionRepo
 	deliverables *repository.DeliverableRepo
-	subtasks     *repository.SubtaskRepo
+	subtasks     *repository.TaskRepo
 	delivSvc     *service.DeliverableService
 }
 
 func NewSubmissionHandler(
 	submissions *repository.SubmissionRepo,
 	deliverables *repository.DeliverableRepo,
-	subtasks *repository.SubtaskRepo,
+	subtasks *repository.TaskRepo,
 	delivSvc *service.DeliverableService,
 ) *SubmissionHandler {
 	return &SubmissionHandler{submissions: submissions, deliverables: deliverables, subtasks: subtasks, delivSvc: delivSvc}
 }
+
 
 func (h *SubmissionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	deliverableID := r.PathValue("id")
@@ -146,26 +147,38 @@ func (h *SubmissionHandler) RejectSubmission(w http.ResponseWriter, r *http.Requ
 		Err(w, http.StatusInternalServerError, "failed to reject submission")
 		return
 	}
+	// Move deliverable to rejected
+	sub, _ := h.submissions.FindByID(id)
+	if sub != nil {
+		h.deliverables.UpdateStatus(sub.DeliverableID, models.DelivRejected) //nolint:errcheck
+	}
 	JSON(w, http.StatusOK, map[string]bool{"rejected": true})
 }
 
-// Subtasks sub-resource
+// Subtasks sub-resource (Unified with Tasks)
 func (h *SubmissionHandler) ListSubtasks(w http.ResponseWriter, r *http.Request) {
 	deliverableID := r.PathValue("id")
-	subtasks, err := h.subtasks.ListByDeliverable(deliverableID)
+	tasks, err := h.subtasks.ListByDeliverable(deliverableID)
 	if err != nil {
-		Err(w, http.StatusInternalServerError, "failed to list subtasks")
+		Err(w, http.StatusInternalServerError, "failed to list tasks")
 		return
 	}
-	if subtasks == nil {
-		subtasks = []*models.Subtask{}
+	if tasks == nil {
+		tasks = []*models.Task{}
 	}
-	JSON(w, http.StatusOK, subtasks)
+	JSON(w, http.StatusOK, tasks)
 }
 
 func (h *SubmissionHandler) CreateSubtask(w http.ResponseWriter, r *http.Request) {
 	deliverableID := r.PathValue("id")
 	contributorID := middleware.GetUserID(r)
+
+	d, err := h.deliverables.FindByID(deliverableID)
+	if err != nil {
+		Err(w, http.StatusNotFound, "deliverable not found")
+		return
+	}
+
 	var body struct {
 		Title    string `json:"title"`
 		Position int    `json:"position"`
@@ -174,22 +187,32 @@ func (h *SubmissionHandler) CreateSubtask(w http.ResponseWriter, r *http.Request
 		Err(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s := &models.Subtask{
+	t := &models.Task{
 		ID:            uuid.New().String(),
 		DeliverableID: deliverableID,
-		ContributorID: contributorID,
+		ProjectID:     d.ProjectID,
+		CreatedBy:     contributorID,
+		AssignedTo:    &contributorID, // Subtasks are assigned to the contributor by default
 		Title:         body.Title,
 		Position:      body.Position,
+		Status:        models.KanbanTodo,
+		IsRequired:    false,
 	}
-	if err := h.subtasks.Create(s); err != nil {
-		Err(w, http.StatusInternalServerError, "failed to create subtask")
+	if err := h.subtasks.Create(t); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to create task")
 		return
 	}
-	JSON(w, http.StatusCreated, s)
+	JSON(w, http.StatusCreated, t)
 }
 
 func (h *SubmissionHandler) UpdateSubtask(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("subtaskId")
+	t, err := h.subtasks.Get(id)
+	if err != nil {
+		Err(w, http.StatusNotFound, "task not found")
+		return
+	}
+
 	var body struct {
 		Title    string `json:"title"`
 		Done     bool   `json:"done"`
@@ -199,10 +222,32 @@ func (h *SubmissionHandler) UpdateSubtask(w http.ResponseWriter, r *http.Request
 		Err(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s := &models.Subtask{ID: id, Title: body.Title, Done: body.Done, Position: body.Position}
-	if err := h.subtasks.Update(s); err != nil {
-		Err(w, http.StatusInternalServerError, "failed to update subtask")
+
+	t.Title = body.Title
+	if body.Done {
+		t.Status = models.KanbanDone
+	} else if t.Status == models.KanbanDone {
+		t.Status = models.KanbanTodo
+	}
+	t.Position = body.Position
+
+	if err := h.subtasks.Update(t); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to update task")
 		return
 	}
-	JSON(w, http.StatusOK, s)
+	JSON(w, http.StatusOK, t)
 }
+
+func (h *SubmissionHandler) ListHistory(w http.ResponseWriter, r *http.Request) {
+	deliverableID := r.PathValue("id")
+	subs, err := h.submissions.ListByDeliverable(deliverableID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to list history")
+		return
+	}
+	if subs == nil {
+		subs = []*models.Submission{}
+	}
+	JSON(w, http.StatusOK, subs)
+}
+

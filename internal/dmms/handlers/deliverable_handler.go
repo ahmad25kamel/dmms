@@ -203,6 +203,14 @@ func (h *DeliverableHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (h *DeliverableHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	userID := middleware.GetUserID(r)
+
+	d, err := h.repo.FindByID(id)
+	if err != nil {
+		Err(w, http.StatusNotFound, "deliverable not found")
+		return
+	}
+
 	var body struct {
 		Title      string `json:"title"`
 		IsRequired bool   `json:"is_required"`
@@ -212,13 +220,18 @@ func (h *DeliverableHandler) CreateTask(w http.ResponseWriter, r *http.Request) 
 		Err(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
 	t := &models.Task{
 		ID:            uuid.New().String(),
 		DeliverableID: id,
+		ProjectID:     d.ProjectID,
+		CreatedBy:     userID,
 		Title:         body.Title,
 		IsRequired:    body.IsRequired,
 		Position:      body.Position,
+		Status:        models.KanbanTodo,
 	}
+
 	if err := h.tasks.Create(t); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to create task")
 		return
@@ -227,7 +240,13 @@ func (h *DeliverableHandler) CreateTask(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *DeliverableHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
-	taskID := r.PathValue("taskId")
+	id := r.PathValue("taskId")
+	t, err := h.tasks.Get(id)
+	if err != nil {
+		Err(w, http.StatusNotFound, "task not found")
+		return
+	}
+
 	var body struct {
 		Title      string `json:"title"`
 		IsRequired bool   `json:"is_required"`
@@ -237,7 +256,11 @@ func (h *DeliverableHandler) UpdateTask(w http.ResponseWriter, r *http.Request) 
 		Err(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	t := &models.Task{ID: taskID, Title: body.Title, IsRequired: body.IsRequired, Position: body.Position}
+
+	t.Title = body.Title
+	t.IsRequired = body.IsRequired
+	t.Position = body.Position
+
 	if err := h.tasks.Update(t); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to update task")
 		return

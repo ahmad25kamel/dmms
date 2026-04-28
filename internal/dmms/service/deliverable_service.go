@@ -185,7 +185,7 @@ func (s *DeliverableService) Reassign(deliverableID string) error {
 	if err != nil {
 		return err
 	}
-	if d.Status != models.DelivAssigned && d.Status != models.DelivInProgress && d.Status != models.DelivRevisionRequested {
+	if d.Status != models.DelivAssigned && d.Status != models.DelivInProgress && d.Status != models.DelivRevisionRequested && d.Status != models.DelivRejected {
 		return fmt.Errorf("cannot reassign from status %s", d.Status)
 	}
 	// Unassign and reopen for bids

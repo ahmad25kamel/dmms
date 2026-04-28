@@ -33,6 +33,14 @@ func (r *SubmissionRepo) FindByDeliverable(deliverableID string) (*models.Submis
 	row := r.db.QueryRow(selectSubmission+` WHERE s.deliverable_id=? ORDER BY s.submitted_at DESC LIMIT 1`, deliverableID)
 	return scanSubmission(row)
 }
+func (r *SubmissionRepo) ListByDeliverable(deliverableID string) ([]*models.Submission, error) {
+	rows, err := r.db.Query(selectSubmission+` WHERE s.deliverable_id=? ORDER BY s.submitted_at DESC`, deliverableID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSubmissions(rows)
+}
 
 func (r *SubmissionRepo) ListPending(pmID string) ([]*models.Submission, error) {
 	rows, err := r.db.Query(`

@@ -33,7 +33,8 @@ export type DeliverableStatus =
   | 'submitted'
   | 'approved'
   | 'revision_requested'
-  | 'cancelled';
+  | 'cancelled'
+  | 'rejected';
 
 export type Visibility = 'public' | 'private';
 
@@ -61,11 +62,26 @@ export interface Deliverable {
 export interface Task {
   id: string;
   deliverable_id: string;
+  project_id: string;
+  created_by: string;
+  assigned_to: string | null;
   title: string;
+  description: string;
+  status: KanbanStatus;
   is_required: boolean;
+  due_date: string | null;
   position: number;
+  created_at: string;
+  updated_at: string;
+  // Enriched fields
+  project_name?: string;
+  deliverable_title?: string;
+  assigned_to_name?: string;
+  created_by_name?: string;
+  comment_count?: number;
 }
 
+// Subtask is now part of Task (is_required: false)
 export interface Subtask {
   id: string;
   deliverable_id: string;
@@ -121,27 +137,9 @@ export interface RewardLedgerEntry {
 
 export type KanbanStatus = 'backlog' | 'todo' | 'in_progress' | 'done';
 
-export interface KanbanTask {
-  id: string;
-  deliverable_id: string;
-  project_id: string;
-  created_by: string;
-  assigned_to: string | null;
-  title: string;
-  description: string;
-  status: KanbanStatus;
-  due_date: string | null;
-  position: number;
-  created_at: string;
-  updated_at: string;
-  project_name?: string;
-  deliverable_title?: string;
-  assigned_to_name?: string;
-  created_by_name?: string;
-  comment_count?: number;
-}
+export type KanbanTask = Task;
 
-export interface KanbanComment {
+export interface TaskComment {
   id: string;
   task_id: string;
   author_id: string;
@@ -149,6 +147,8 @@ export interface KanbanComment {
   body: string;
   created_at: string;
 }
+
+export type KanbanComment = TaskComment;
 
 export interface ApiResponse<T> {
   success: boolean;

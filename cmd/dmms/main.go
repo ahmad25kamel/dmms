@@ -29,11 +29,9 @@ func main() {
 	projectRepo := repository.NewProjectRepo(db)
 	deliverableRepo := repository.NewDeliverableRepo(db)
 	taskRepo := repository.NewTaskRepo(db)
-	subtaskRepo := repository.NewSubtaskRepo(db)
 	proposalRepo := repository.NewProposalRepo(db)
 	submissionRepo := repository.NewSubmissionRepo(db)
 	rewardRepo := repository.NewRewardRepo(db)
-	kanbanRepo := repository.NewKanbanRepo(db)
 
 	// Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
@@ -44,11 +42,11 @@ func main() {
 	projectH := handlers.NewProjectHandler(projectRepo)
 	delivH := handlers.NewDeliverableHandler(deliverableRepo, taskRepo, delivSvc, projectRepo)
 	proposalH := handlers.NewProposalHandler(proposalRepo, deliverableRepo, delivSvc)
-	submissionH := handlers.NewSubmissionHandler(submissionRepo, deliverableRepo, subtaskRepo, delivSvc)
+	submissionH := handlers.NewSubmissionHandler(submissionRepo, deliverableRepo, taskRepo, delivSvc)
 	marketH := handlers.NewMarketplaceHandler(deliverableRepo)
 	rewardH := handlers.NewRewardHandler(rewardRepo)
 	adminH := handlers.NewAdminHandler(userRepo)
-	kanbanH := handlers.NewKanbanHandler(kanbanRepo)
+	kanbanH := handlers.NewKanbanHandler(taskRepo)
 
 	// Auth middleware
 	authMW := middleware.Auth(authSvc)
@@ -105,6 +103,7 @@ func main() {
 	mux.Handle("PATCH /api/dmms/deliverables/{id}/subtasks/{subtaskId}", authMW(http.HandlerFunc(submissionH.UpdateSubtask)))
 	mux.Handle("POST /api/dmms/deliverables/{id}/submissions", authMW(http.HandlerFunc(submissionH.Submit)))
 	mux.Handle("GET /api/dmms/deliverables/{id}/submission", authMW(http.HandlerFunc(submissionH.GetByDeliverable)))
+	mux.Handle("GET /api/dmms/deliverables/{id}/submissions", authMW(http.HandlerFunc(submissionH.ListHistory)))
 
 	// Review (PM)
 	mux.Handle("GET /api/dmms/submissions/pending", authMW(pmOnly(http.HandlerFunc(submissionH.PendingForPM))))

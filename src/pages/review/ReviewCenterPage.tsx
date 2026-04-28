@@ -10,10 +10,19 @@ export function ReviewCenterPage() {
   const [selected, setSelected] = useState<Submission | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [acting, setActing] = useState(false);
+  const [history, setHistory] = useState<Submission[]>([]);
 
   useEffect(() => {
     submissionsApi.pending().then(setSubmissions).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (selected) {
+      submissionsApi.listHistory(selected.deliverable_id).then(setHistory);
+    } else {
+      setHistory([]);
+    }
+  }, [selected]);
 
   async function approve(id: string) {
     setActing(true);
@@ -108,6 +117,24 @@ export function ReviewCenterPage() {
             <FormField label="Review Notes (optional)">
               <Textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} placeholder="Feedback for the contributor…" />
             </FormField>
+
+            {history.length > 1 && (
+              <div style={{ marginTop: 8 }}>
+                <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>Previous Submissions</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {history.slice(1).map(h => (
+                    <div key={h.id} style={{ padding: 10, background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Badge color={submissionStatusColor[h.status]}>{h.status}</Badge>
+                        <span className="meta">{formatDate(h.submitted_at)}</span>
+                      </div>
+                      {h.notes && <p style={{ marginBottom: 4 }}><b>Notes:</b> {h.notes}</p>}
+                      {h.review_notes && <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}><b>Feedback:</b> {h.review_notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </Modal>
       )}

@@ -53,6 +53,7 @@ const (
 	DelivApproved          DeliverableStatus = "approved"
 	DelivRevisionRequested DeliverableStatus = "revision_requested"
 	DelivCancelled         DeliverableStatus = "cancelled"
+	DelivRejected          DeliverableStatus = "rejected"
 )
 
 type Visibility string
@@ -83,78 +84,16 @@ type Deliverable struct {
 	ProjectName        string            `json:"project_name,omitempty"`
 }
 
-type Task struct {
-	ID             string `json:"id"`
-	DeliverableID  string `json:"deliverable_id"`
-	Title          string `json:"title"`
-	IsRequired     bool   `json:"is_required"`
-	Position       int    `json:"position"`
-}
-
-type Subtask struct {
-	ID             string `json:"id"`
-	DeliverableID  string `json:"deliverable_id"`
-	ContributorID  string `json:"contributor_id"`
-	Title          string `json:"title"`
-	Done           bool   `json:"done"`
-	Position       int    `json:"position"`
-}
-
-type ProposalStatus string
-
-const (
-	ProposalPending   ProposalStatus = "pending"
-	ProposalAccepted  ProposalStatus = "accepted"
-	ProposalRejected  ProposalStatus = "rejected"
-	ProposalWithdrawn ProposalStatus = "withdrawn"
-)
-
-type Proposal struct {
-	ID             string         `json:"id"`
-	DeliverableID  string         `json:"deliverable_id"`
-	ContributorID  string         `json:"contributor_id"`
-	BidAmount      float64        `json:"bid_amount"`
-	ETADate        *time.Time     `json:"eta_date"`
-	Message        string         `json:"message"`
-	Status         ProposalStatus `json:"status"`
-	CreatedAt      time.Time      `json:"created_at"`
-	ContributorName string        `json:"contributor_name,omitempty"`
-}
-
-type SubmissionStatus string
-
-const (
-	SubmissionPending           SubmissionStatus = "pending"
-	SubmissionApproved          SubmissionStatus = "approved"
-	SubmissionRevisionRequested SubmissionStatus = "revision_requested"
-	SubmissionRejected          SubmissionStatus = "rejected"
-)
-
-type Submission struct {
-	ID                  string           `json:"id"`
-	DeliverableID       string           `json:"deliverable_id"`
-	ContributorID       string           `json:"contributor_id"`
-	Notes               string           `json:"notes"`
-	ChecklistCompletion string           `json:"checklist_completion"` // JSON
-	FileUploads         string           `json:"file_uploads"`         // JSON
-	PRLinks             string           `json:"pr_links"`             // JSON
-	Status              SubmissionStatus `json:"status"`
-	ReviewerID          *string          `json:"reviewer_id"`
-	ReviewNotes         string           `json:"review_notes"`
-	SubmittedAt         time.Time        `json:"submitted_at"`
-	ReviewedAt          *time.Time       `json:"reviewed_at"`
-}
-
 type KanbanStatus string
 
 const (
-	KanbanBacklog    KanbanStatus = "backlog"
-	KanbanTodo       KanbanStatus = "todo"
+	KanbanBacklog   KanbanStatus = "backlog"
+	KanbanTodo      KanbanStatus = "todo"
 	KanbanInProgress KanbanStatus = "in_progress"
 	KanbanDone       KanbanStatus = "done"
 )
 
-type KanbanTask struct {
+type Task struct {
 	ID             string       `json:"id"`
 	DeliverableID  string       `json:"deliverable_id"`
 	ProjectID      string       `json:"project_id"`
@@ -163,6 +102,7 @@ type KanbanTask struct {
 	Title          string       `json:"title"`
 	Description    string       `json:"description"`
 	Status         KanbanStatus `json:"status"`
+	IsRequired     bool         `json:"is_required"`
 	DueDate        *time.Time   `json:"due_date"`
 	Position       int          `json:"position"`
 	CreatedAt      time.Time    `json:"created_at"`
@@ -175,13 +115,65 @@ type KanbanTask struct {
 	CommentCount       int    `json:"comment_count,omitempty"`
 }
 
-type KanbanComment struct {
+// Alias for migration
+type KanbanTask = Task
+
+type TaskComment struct {
 	ID         string    `json:"id"`
 	TaskID     string    `json:"task_id"`
 	AuthorID   string    `json:"author_id"`
 	AuthorName string    `json:"author_name,omitempty"`
 	Body       string    `json:"body"`
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+// Alias for migration
+type KanbanComment = TaskComment
+
+
+type SubmissionStatus string
+
+const (
+	SubmissionPending           SubmissionStatus = "pending"
+	SubmissionApproved          SubmissionStatus = "approved"
+	SubmissionRejected          SubmissionStatus = "rejected"
+	SubmissionRevisionRequested SubmissionStatus = "revision_requested"
+)
+
+type Submission struct {
+	ID                  string           `json:"id"`
+	DeliverableID       string           `json:"deliverable_id"`
+	ContributorID       string           `json:"contributor_id"`
+	Notes               string           `json:"notes"`
+	ChecklistCompletion string           `json:"checklist_completion"` // JSON object
+	FileUploads         string           `json:"file_uploads"`         // JSON array
+	PRLinks             string           `json:"pr_links"`             // JSON array
+	Status              SubmissionStatus `json:"status"`
+	ReviewerID          *string          `json:"reviewer_id"`
+	ReviewNotes         string           `json:"review_notes"`
+	SubmittedAt         time.Time        `json:"submitted_at"`
+	ReviewedAt          *time.Time       `json:"reviewed_at"`
+}
+
+type ProposalStatus string
+
+const (
+	ProposalPending  ProposalStatus = "pending"
+	ProposalAccepted ProposalStatus = "accepted"
+	ProposalRejected ProposalStatus = "rejected"
+	ProposalWithdrawn ProposalStatus = "withdrawn"
+)
+
+type Proposal struct {
+	ID              string         `json:"id"`
+	DeliverableID   string         `json:"deliverable_id"`
+	ContributorID   string         `json:"contributor_id"`
+	BidAmount       float64        `json:"bid_amount"`
+	ETADate         *time.Time     `json:"eta_date"`
+	Message         string         `json:"message"`
+	Status          ProposalStatus `json:"status"`
+	CreatedAt       time.Time      `json:"created_at"`
+	ContributorName string         `json:"contributor_name,omitempty"`
 }
 
 type RewardLedgerEntry struct {

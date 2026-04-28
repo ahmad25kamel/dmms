@@ -9,24 +9,31 @@ export function WorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [subtasks, setSubtasks] = useState<Task[]>([]); // Unified type
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
 
-  useEffect(() => {
+  async function load() {
     if (!id) return;
-    Promise.all([
-      deliverablesApi.get(id),
-      deliverablesApi.listTasks(id),
-      deliverablesApi.listSubtasks(id),
-      deliverablesApi.getSubmission(id).catch(() => null),
-    ]).then(([d, t, s, sub]) => {
+    try {
+      const [d, t, s, sub] = await Promise.all([
+        deliverablesApi.get(id),
+        deliverablesApi.listTasks(id),
+        deliverablesApi.listSubtasks(id),
+        deliverablesApi.getSubmission(id).catch(() => null),
+      ]);
       setDeliverable(d);
       setTasks(t);
       setSubtasks(s);
       setSubmission(sub);
-    }).finally(() => setLoading(false));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
   }, [id]);
 
   async function addSubtask(title: string) {
@@ -34,15 +41,16 @@ export function WorkspacePage() {
     setSubtasks(ss => [...ss, s]);
   }
 
-  async function toggleSubtask(subtask: Subtask) {
-    await deliverablesApi.updateSubtask(id!, subtask.id, { ...subtask, done: !subtask.done });
-    setSubtasks(ss => ss.map(s => s.id === subtask.id ? { ...s, done: !s.done } : s));
+  async function toggleSubtask(task: Task) {
+    const newStatus = task.status === 'done' ? 'todo' : 'done';
+    await deliverablesApi.updateSubtask(id!, task.id, { ...task, status: newStatus });
+    setSubtasks(ss => ss.map(s => s.id === task.id ? { ...s, status: newStatus } : s));
   }
 
   if (loading) return <Spinner />;
   if (!deliverable) return <div className="dmms-page"><p className="body-sm">Deliverable not found</p></div>;
 
-  const doneCount = subtasks.filter(s => s.done).length;
+  const doneCount = subtasks.filter(s => s.status === 'done').length;
 
   return (
     <div className="dmms-page" style={{ maxWidth: 760 }}>
@@ -89,12 +97,12 @@ export function WorkspacePage() {
           {subtasks.map(s => (
             <li key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => toggleSubtask(s)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                {s.done
+                {s.status === 'done'
                   ? <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--emerald)" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="9 12 11 14 15 10"/></svg>
                   : <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--border-2)" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
                 }
               </button>
-              <span style={{ fontSize: 13, color: s.done ? 'var(--fg-4)' : 'var(--fg-2)', textDecoration: s.done ? 'line-through' : 'none' }}>{s.title}</span>
+              <span style={{ fontSize: 13, color: s.status === 'done' ? 'var(--fg-4)' : 'var(--fg-2)', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.title}</span>
             </li>
           ))}
         </ul>
@@ -112,7 +120,7 @@ export function WorkspacePage() {
           )}
         </Card>
       ) : (
-        deliverable.status !== 'approved' && deliverable.status !== 'cancelled' && (
+        deliverable.status !== 'approved' && deliverable.status !== 'cancelled' && deliverable.status !== 'rejected' && (
           <Button onClick={() => setShowSubmit(true)}>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             Submit for Review
