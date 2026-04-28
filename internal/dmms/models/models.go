@@ -73,9 +73,9 @@ type Deliverable struct {
 	ProjectID          string            `json:"project_id" gorm:"column:project_id;not null;size:191"`
 	ParentID           *string           `json:"parent_id" gorm:"column:parent_id;size:191"`
 	Title              string            `json:"title" gorm:"not null"`
-	Brief              string            `json:"brief"`
-	Scope              string            `json:"scope"`
-	AcceptanceCriteria string            `json:"acceptance_criteria" gorm:"column:acceptance_criteria;default:'[]'"` // JSON array
+	Brief              string            `json:"brief" gorm:"type:text"`
+	Scope              string            `json:"scope" gorm:"type:text"`
+	AcceptanceCriteria string            `json:"acceptance_criteria" gorm:"column:acceptance_criteria;type:text;default:'[]'"` // JSON array
 	MaxBudget          float64           `json:"max_budget" gorm:"column:max_budget;not null;default:0"`
 	AcceptedBudget     *float64          `json:"accepted_budget" gorm:"column:accepted_budget"`
 	StartDate          *time.Time        `json:"start_date" gorm:"column:start_date"`

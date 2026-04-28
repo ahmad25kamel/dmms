@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -346,11 +347,29 @@ func (h *DeliverableHandler) ImportJSON(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var processDeliverable func(item ImportDeliverable, parentID *string)
-	processDeliverable = func(item ImportDeliverable, parentID *string) {
+	var validate func(item ImportDeliverable) error
+	validate = func(item ImportDeliverable) error {
 		if item.Title == "" {
+			return fmt.Errorf("all deliverables and sub-deliverables must have a title")
+		}
+		for _, child := range item.Children {
+			if err := validate(child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	for _, item := range body {
+		if err := validate(item); err != nil {
+			Err(w, http.StatusBadRequest, err.Error())
 			return
 		}
+	}
+
+	insertedCount := 0
+	var processDeliverable func(item ImportDeliverable, parentID *string) error
+	processDeliverable = func(item ImportDeliverable, parentID *string) error {
 		d := &models.Deliverable{
 			ProjectID:          projectID,
 			ParentID:           parentID,
@@ -379,33 +398,42 @@ func (h *DeliverableHandler) ImportJSON(w http.ResponseWriter, r *http.Request) 
 				d.DueDate = &dt
 			}
 		}
-		if err := h.svc.Create(d); err == nil {
-			// Create tasks
-			for i, task := range item.Tasks {
-				t := &models.Task{
-					ID:            uuid.New().String(),
-					DeliverableID: d.ID,
-					ProjectID:     projectID,
-					CreatedBy:     userID,
-					Title:         task.Title,
-					Description:   task.Description,
-					Status:        models.KanbanBacklog,
-					Position:      i,
-				}
-				h.tasks.Create(t)
+		if err := h.svc.Create(d); err != nil {
+			return fmt.Errorf("failed to create deliverable '%s': %v", item.Title, err)
+		}
+		insertedCount++
+
+		// Create tasks
+		for i, task := range item.Tasks {
+			t := &models.Task{
+				ID:            uuid.New().String(),
+				DeliverableID: d.ID,
+				ProjectID:     projectID,
+				CreatedBy:     userID,
+				Title:         task.Title,
+				Description:   task.Description,
+				Status:        models.KanbanBacklog,
+				Position:      i,
 			}
-			// Process children
-			for _, child := range item.Children {
-				processDeliverable(child, &d.ID)
+			h.tasks.Create(t)
+		}
+		// Process children
+		for _, child := range item.Children {
+			if err := processDeliverable(child, &d.ID); err != nil {
+				return err
 			}
 		}
+		return nil
 	}
 
 	for _, item := range body {
-		processDeliverable(item, nil)
+		if err := processDeliverable(item, nil); err != nil {
+			Err(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
-	JSON(w, http.StatusCreated, map[string]interface{}{"success": true, "count": len(body)})
+	JSON(w, http.StatusCreated, map[string]interface{}{"success": true, "count": insertedCount})
 }
 
 // GET /projects/{projectId}/deliverables/template
