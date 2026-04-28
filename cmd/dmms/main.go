@@ -69,6 +69,8 @@ func main() {
 
 	// Deliverable tree
 	mux.Handle("GET /api/dmms/projects/{projectId}/deliverables/tree", authMW(http.HandlerFunc(delivH.Tree)))
+	mux.Handle("POST /api/dmms/projects/{projectId}/deliverables/import", authMW(pmOnly(http.HandlerFunc(delivH.ImportJSON))))
+	mux.Handle("GET /api/dmms/projects/{projectId}/deliverables/template", authMW(pmOnly(http.HandlerFunc(delivH.DownloadTemplate))))
 	mux.Handle("POST /api/dmms/deliverables", authMW(pmOnly(http.HandlerFunc(delivH.Create))))
 	mux.Handle("GET /api/dmms/deliverables/{id}", authMW(http.HandlerFunc(delivH.Get)))
 	mux.Handle("PATCH /api/dmms/deliverables/{id}", authMW(pmOnly(http.HandlerFunc(delivH.Update))))
@@ -118,6 +120,7 @@ func main() {
 	mux.Handle("GET /api/dmms/kanban", authMW(http.HandlerFunc(kanbanH.List)))
 	mux.Handle("GET /api/dmms/kanban/mine", authMW(http.HandlerFunc(kanbanH.Mine)))
 	mux.Handle("POST /api/dmms/kanban", authMW(http.HandlerFunc(kanbanH.Create)))
+	mux.Handle("PUT /api/dmms/kanban/reorder", authMW(http.HandlerFunc(kanbanH.Reorder)))
 	mux.Handle("PATCH /api/dmms/kanban/{id}", authMW(http.HandlerFunc(kanbanH.Update)))
 	mux.Handle("DELETE /api/dmms/kanban/{id}", authMW(http.HandlerFunc(kanbanH.Delete)))
 	mux.Handle("GET /api/dmms/kanban/{id}/comments", authMW(http.HandlerFunc(kanbanH.ListComments)))

@@ -22,7 +22,21 @@ func (r *TaskRepo) Create(t *models.Task) error {
 }
 
 func (r *TaskRepo) Update(t *models.Task) error {
-	return r.db.Save(t).Error
+	return r.db.Model(&models.Task{}).Where("id = ?", t.ID).Updates(map[string]interface{}{
+		"title": t.Title,
+		"description": t.Description,
+		"status": t.Status,
+		"is_required": t.IsRequired,
+		"due_date": t.DueDate,
+		"position": t.Position,
+	}).Error
+}
+
+func (r *TaskRepo) UpdatePosition(id string, status models.KanbanStatus, position int) error {
+	return r.db.Model(&models.Task{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status": status,
+		"position": position,
+	}).Error
 }
 
 func (r *TaskRepo) Delete(id string) error {

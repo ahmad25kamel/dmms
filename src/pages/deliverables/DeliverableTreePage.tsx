@@ -334,6 +334,7 @@ function EditDeliverableModal({ deliverable, onClose, onSaved }: {
     brief: deliverable.brief ?? '',
     scope: deliverable.scope ?? '',
     max_budget: String(deliverable.max_budget),
+    start_date: deliverable.start_date?.slice(0, 10) ?? '',
     due_date: deliverable.due_date?.slice(0, 10) ?? '',
     visibility: deliverable.visibility,
     acceptance_criteria: deliverable.acceptance_criteria ?? '[]',
@@ -353,6 +354,7 @@ function EditDeliverableModal({ deliverable, onClose, onSaved }: {
         brief: form.brief,
         scope: form.scope,
         max_budget: parseFloat(form.max_budget) || 0,
+        start_date: form.start_date || null,
         due_date: form.due_date || null,
         visibility: form.visibility as 'public' | 'private',
         acceptance_criteria: form.acceptance_criteria || '[]',
@@ -386,9 +388,14 @@ function EditDeliverableModal({ deliverable, onClose, onSaved }: {
           <FormField label="Max Budget (Rp)">
             <Input type="number" value={form.max_budget} onChange={e => set('max_budget', e.target.value)} min="0" />
           </FormField>
-          <FormField label="Due Date">
-            <Input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} />
-          </FormField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <FormField label="Start Date">
+              <Input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+            </FormField>
+            <FormField label="Due Date">
+              <Input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} />
+            </FormField>
+          </div>
         </div>
         <FormField label="Visibility">
           <Select value={form.visibility} onChange={e => set('visibility', e.target.value)}>
@@ -409,7 +416,7 @@ function CreateDeliverableModal({ projectId, parentId, onClose, onCreate }: {
 }) {
   const [form, setForm] = useState({
     title: '', brief: '', scope: '', max_budget: '',
-    due_date: '', visibility: 'public', acceptance_criteria: '[]',
+    start_date: '', due_date: '', visibility: 'public', acceptance_criteria: '[]',
   });
   const [saving, setSaving] = useState(false);
 
@@ -426,6 +433,7 @@ function CreateDeliverableModal({ projectId, parentId, onClose, onCreate }: {
         brief: form.brief,
         scope: form.scope,
         max_budget: parseFloat(form.max_budget) || 0,
+        start_date: form.start_date || null,
         due_date: form.due_date || null,
         visibility: form.visibility as 'public' | 'private',
         acceptance_criteria: form.acceptance_criteria || '[]',
@@ -457,9 +465,14 @@ function CreateDeliverableModal({ projectId, parentId, onClose, onCreate }: {
           <FormField label="Max Budget (Rp)">
             <Input type="number" value={form.max_budget} onChange={e => set('max_budget', e.target.value)} min="0" />
           </FormField>
-          <FormField label="Due Date">
-            <Input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} />
-          </FormField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <FormField label="Start Date">
+              <Input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+            </FormField>
+            <FormField label="Due Date">
+              <Input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} />
+            </FormField>
+          </div>
         </div>
         <FormField label="Visibility">
           <Select value={form.visibility} onChange={e => set('visibility', e.target.value)}>

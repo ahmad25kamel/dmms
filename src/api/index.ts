@@ -25,6 +25,8 @@ export const projectsApi = {
 // Deliverables
 export const deliverablesApi = {
   tree: (projectId: string) => api.get<Deliverable[]>(`/projects/${projectId}/deliverables/tree`),
+  importJSON: (projectId: string, body: any[]) => api.post<{ success: boolean; count: number }>(`/projects/${projectId}/deliverables/import`, body),
+  downloadTemplate: (projectId: string) => api.get<any[]>(`/projects/${projectId}/deliverables/template`),
   get: (id: string) => api.get<Deliverable>(`/deliverables/${id}`),
   create: (body: Partial<Deliverable>) => api.post<Deliverable>('/deliverables', body),
   update: (id: string, body: Partial<Deliverable>) => api.patch<Deliverable>(`/deliverables/${id}`, body),
@@ -96,6 +98,7 @@ export const kanbanApi = {
   mine: () => api.get<KanbanTask[]>('/kanban/mine'),
   create: (body: Partial<KanbanTask> & { due_date?: string }) => api.post<KanbanTask>('/kanban', body),
   update: (id: string, body: Partial<KanbanTask> & { due_date?: string }) => api.patch<KanbanTask>(`/kanban/${id}`, body),
+  reorder: (body: { id: string; status: string; position: number }[]) => api.put<{ success: boolean }>('/kanban/reorder', body),
   delete: (id: string) => api.delete<{ deleted: boolean }>(`/kanban/${id}`),
   listComments: (id: string) => api.get<KanbanComment[]>(`/kanban/${id}/comments`),
   addComment: (id: string, body: string) => api.post<KanbanComment>(`/kanban/${id}/comments`, { body }),

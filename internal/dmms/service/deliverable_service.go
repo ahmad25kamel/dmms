@@ -114,6 +114,14 @@ func (s *DeliverableService) AcceptProposal(proposalID string, pmID string) erro
 			}
 		}
 
+		// Assign all tasks of deliverable and its descendants to the contributor
+		allDeliverableIDs := append([]string{deliverable.ID}, descendantIDs...)
+		if err := tx.Table("dmms_tasks").
+			Where("deliverable_id IN ?", allDeliverableIDs).
+			Update("assigned_to", proposal.ContributorID).Error; err != nil {
+			return err
+		}
+
 		// Update project budget_allocated
 		return s.recomputeProjectBudget(tx, deliverable.ProjectID)
 	})

@@ -48,6 +48,7 @@ export interface Deliverable {
   acceptance_criteria: string;
   max_budget: number;
   accepted_budget: number | null;
+  start_date?: string;
   due_date: string | null;
   dependency_id: string | null;
   visibility: Visibility;

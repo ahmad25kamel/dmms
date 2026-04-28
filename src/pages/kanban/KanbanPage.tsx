@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { kanbanApi, projectsApi } from '../../api';
 import type { KanbanTask, KanbanComment, Project } from '../../types';
 import { Button, Modal, FormField, Input, Textarea, Select, Spinner, EmptyState, Alert } from '../../components/ui';
@@ -47,9 +47,19 @@ function PMKanban() {
     reload();
   }, [reload]);
 
-  async function moveTask(id: string, status: KanbanStatus) {
-    await kanbanApi.update(id, { status });
-    setTasks(ts => ts.map(t => t.id === id ? { ...t, status } : t));
+  async function moveTask(taskId: string, destStatus: KanbanStatus, dropIndex: number) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    let updatedTasks = [...tasks].filter(t => t.id !== taskId);
+    const colTasks = updatedTasks.filter(t => t.status === destStatus).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const newTask = { ...task, status: destStatus };
+    colTasks.splice(dropIndex, 0, newTask);
+    colTasks.forEach((t, i) => { t.position = i; });
+    setTasks(ts => {
+      const remaining = ts.filter(t => t.status !== destStatus && t.id !== taskId);
+      return [...remaining, ...colTasks];
+    });
+    await kanbanApi.reorder(colTasks.map(t => ({ id: t.id, status: destStatus, position: t.position })));
   }
 
   // Unique contributors from tasks
@@ -128,9 +138,19 @@ function ContributorKanban() {
     reload();
   }, [reload]);
 
-  async function moveTask(id: string, status: KanbanStatus) {
-    await kanbanApi.update(id, { status });
-    setTasks(ts => ts.map(t => t.id === id ? { ...t, status } : t));
+  async function moveTask(taskId: string, destStatus: KanbanStatus, dropIndex: number) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    let updatedTasks = [...tasks].filter(t => t.id !== taskId);
+    const colTasks = updatedTasks.filter(t => t.status === destStatus).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const newTask = { ...task, status: destStatus };
+    colTasks.splice(dropIndex, 0, newTask);
+    colTasks.forEach((t, i) => { t.position = i; });
+    setTasks(ts => {
+      const remaining = ts.filter(t => t.status !== destStatus && t.id !== taskId);
+      return [...remaining, ...colTasks];
+    });
+    await kanbanApi.reorder(colTasks.map(t => ({ id: t.id, status: destStatus, position: t.position })));
   }
 
   if (!user) return null;
@@ -183,30 +203,46 @@ function ContributorKanban() {
 
 function KanbanBoard({ tasks, onMove, onSelect }: {
   tasks: KanbanTask[];
-  onMove: (id: string, status: KanbanStatus) => void;
+  onMove: (id: string, status: KanbanStatus, index: number) => void;
   onSelect: (t: KanbanTask) => void;
 }) {
-  const handleDragOver = (e: React.DragEvent) => {
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDragOver = (e: React.DragEvent, status: KanbanStatus, index: number) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
+    setDragOverCol(status);
+    setDragOverIndex(index);
   };
 
-  const handleDrop = (e: React.DragEvent, status: KanbanStatus) => {
+  const handleDrop = (e: React.DragEvent, status: KanbanStatus, index: number) => {
     e.preventDefault();
+    e.stopPropagation();
+    setDragOverCol(null);
+    setDragOverIndex(null);
     const id = e.dataTransfer.getData('taskId');
-    if (id) onMove(id, status);
+    if (id) onMove(id, status, index);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverCol(null);
+    setDragOverIndex(null);
   };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'start' }}>
       {COLUMNS.map(col => {
-        const colTasks = tasks.filter(t => t.status === col.key);
+        const colTasks = tasks.filter(t => t.status === col.key).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         return (
           <div
             key={col.key}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, col.key)}
-            style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', minHeight: 400 }}
+            onDragOver={(e) => handleDragOver(e, col.key, colTasks.length)}
+            onDrop={(e) => handleDrop(e, col.key, colTasks.length)}
+            onDragLeave={handleDragLeave}
           >
             {/* Column header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 2px' }}>
@@ -216,10 +252,33 @@ function KanbanBoard({ tasks, onMove, onSelect }: {
             </div>
 
             {/* Cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 150, background: 'var(--bg-2)', borderRadius: 'var(--radius-lg)', padding: 4 }}>
-              {colTasks.map(t => (
-                <KanbanCard key={t.id} task={t} onSelect={onSelect} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minHeight: 150, background: 'var(--bg-2)', borderRadius: 'var(--radius-lg)', padding: '6px 4px' }}>
+              {colTasks.map((t, index) => (
+                <React.Fragment key={t.id}>
+                  <div
+                    onDragOver={(e) => handleDragOver(e, col.key, index)}
+                    onDrop={(e) => handleDrop(e, col.key, index)}
+                    style={{
+                      height: 12,
+                      transition: 'all 0.2s',
+                      background: dragOverCol === col.key && dragOverIndex === index ? 'var(--kamel-blue-soft)' : 'transparent',
+                      borderRadius: 4
+                    }}
+                  />
+                  <KanbanCard task={t} onSelect={onSelect} />
+                </React.Fragment>
               ))}
+              <div
+                onDragOver={(e) => handleDragOver(e, col.key, colTasks.length)}
+                onDrop={(e) => handleDrop(e, col.key, colTasks.length)}
+                style={{
+                  height: 30,
+                  transition: 'all 0.2s',
+                  background: dragOverCol === col.key && dragOverIndex === colTasks.length ? 'var(--kamel-blue-soft)' : 'transparent',
+                  borderRadius: 4,
+                  marginTop: 'auto'
+                }}
+              />
             </div>
           </div>
         );
@@ -258,15 +317,17 @@ function KanbanCard({ task: t, onSelect }: {
     >
       {/* Project + deliverable context */}
       {t.project_name && (
-        <p className="eyebrow" style={{ marginBottom: 4, color: 'var(--kamel-blue)' }}>{t.project_name}</p>
+        <div style={{ display: 'inline-flex', padding: '2px 6px', background: 'var(--kamel-blue-soft)', color: 'var(--kamel-blue)', fontSize: 10, fontWeight: 700, borderRadius: 4, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {t.project_name}
+        </div>
       )}
       {t.deliverable_title && (
         <p className="meta" style={{ marginBottom: 4 }}>{t.deliverable_title}</p>
       )}
 
-      <p style={{ fontWeight: 500, fontSize: 13, color: 'var(--fg-0)', marginBottom: t.description ? 6 : 0 }}>{t.title}</p>
+      <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg-0)', marginBottom: t.description ? 6 : 0, lineHeight: 1.4 }}>{t.title}</p>
       {t.description && (
-        <p className="meta" style={{ marginBottom: 6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>
           {t.description}
         </p>
       )}
@@ -274,8 +335,8 @@ function KanbanCard({ task: t, onSelect }: {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {t.due_date && (
-            <span style={{ fontSize: 11, color: isOverdue ? 'var(--rose)' : 'var(--fg-3)', fontWeight: isOverdue ? 600 : 400 }}>
-              {isOverdue ? '⚠ ' : ''}{formatDate(t.due_date)}
+            <span style={{ fontSize: 11, background: isOverdue ? 'var(--rose-soft)' : 'var(--bg-2)', color: isOverdue ? 'var(--rose)' : 'var(--fg-3)', padding: '2px 6px', borderRadius: 4, fontWeight: isOverdue ? 600 : 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+              {isOverdue ? '⚠ ' : '📅 '} {formatDate(t.due_date)}
             </span>
           )}
           {(t.comment_count ?? 0) > 0 && (
@@ -285,9 +346,9 @@ function KanbanCard({ task: t, onSelect }: {
           )}
         </div>
         {t.assigned_to_name && (
-          <span style={{ fontSize: 11, background: 'var(--bg-2)', borderRadius: 'var(--radius-pill)', padding: '2px 8px', color: 'var(--fg-2)' }}>
+          <div title={t.assigned_to_name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, background: 'var(--fg-1)', color: 'var(--bg-0)', borderRadius: '50%', fontSize: 10, fontWeight: 700 }}>
             {t.assigned_to_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-          </span>
+          </div>
         )}
       </div>
 
@@ -511,20 +572,27 @@ function CreateTaskModal({ projects, assignedTo, onClose, onCreate }: {
 
   useEffect(() => {
     if (!projectId) { setDeliverables([]); setDeliverableId(''); return; }
-    import('../../api').then(({ deliverablesApi }) =>
-      deliverablesApi.tree(projectId).then(tree => {
-        const flat: { id: string; title: string }[] = [];
-        function flatten(nodes: any[], depth = 0) {
-          nodes.forEach(n => {
-            flat.push({ id: n.id, title: ('  '.repeat(depth)) + n.title });
-            if (n.children?.length) flatten(n.children, depth + 1);
-          });
-        }
-        flatten(tree);
-        setDeliverables(flat);
-      })
-    );
-  }, [projectId]);
+    import('../../api').then(({ deliverablesApi }) => {
+      if (assignedTo) {
+        deliverablesApi.myAssigned().then(delivs => {
+          const projectDelivs = delivs.filter(d => d.project_id === projectId);
+          setDeliverables(projectDelivs.map(d => ({ id: d.id, title: d.title })));
+        });
+      } else {
+        deliverablesApi.tree(projectId).then(tree => {
+          const flat: { id: string; title: string }[] = [];
+          function flatten(nodes: any[], depth = 0) {
+            nodes.forEach(n => {
+              flat.push({ id: n.id, title: ('  '.repeat(depth)) + n.title });
+              if (n.children?.length) flatten(n.children, depth + 1);
+            });
+          }
+          flatten(tree);
+          setDeliverables(flat);
+        });
+      }
+    });
+  }, [projectId, assignedTo]);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 

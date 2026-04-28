@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { marketplaceApi, proposalsApi, deliverablesApi } from '../../api';
 import type { Deliverable, Task } from '../../types';
-import { Card, Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, Alert } from '../../components/ui';
+import { Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, Alert } from '../../components/ui';
 import { formatCurrency, formatDate, deliverableStatusColor } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
 
@@ -24,6 +24,8 @@ export function MarketplacePage() {
 
   if (loading) return <Spinner />;
 
+  const projectTrees = buildTreesByProject(bids);
+
   return (
     <div className="dmms-page">
       <div className="dmms-page-head">
@@ -37,25 +39,18 @@ export function MarketplacePage() {
         <EmptyState title="No open bids" description="There are no deliverables open for bidding right now." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {Array.from(new Set(bids.map(b => b.project_name || 'Individual Bids'))).map(projectName => (
+          {projectTrees.map(({ projectName, tree }) => (
             <div key={projectName}>
               <h3 style={{ marginBottom: 12, fontSize: 16, borderBottom: '1px solid var(--border-1)', paddingBottom: 8 }}>{projectName}</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {bids.filter(b => (b.project_name || 'Individual Bids') === projectName).map(d => (
-                  <div key={d.id} className="dmms-tree-node" style={{ background: 'var(--bg-1)', padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontWeight: 600, fontSize: 14 }}>{d.title}</span>
-                        <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 12 }}>{formatCurrency(d.max_budget)}</span>
-                        {d.due_date && <span className="meta">Due {formatDate(d.due_date)}</span>}
-                      </div>
-                      {d.brief && <p className="body-sm" style={{ marginTop: 2, color: 'var(--fg-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.brief}</p>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                      <Button size="sm" variant="secondary" onClick={() => openDetail(d)}>Details</Button>
-                      {user?.role === 'contributor' && <BidButton deliverable={d} />}
-                    </div>
-                  </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {tree.map(node => (
+                  <MarketplaceNode
+                    key={node.id}
+                    deliverable={node}
+                    depth={0}
+                    userRole={user?.role}
+                    onOpenDetail={openDetail}
+                  />
                 ))}
               </div>
             </div>
@@ -71,6 +66,88 @@ export function MarketplacePage() {
           onClose={() => setSelected(null)}
         />
       )}
+    </div>
+  );
+}
+
+function buildTreesByProject(bids: Deliverable[]) {
+  const projectsMap = new Map<string, Deliverable[]>();
+  
+  bids.forEach(b => {
+    const projectName = b.project_name || 'Individual Bids';
+    if (!projectsMap.has(projectName)) projectsMap.set(projectName, []);
+    projectsMap.get(projectName)!.push(b);
+  });
+
+  const result: { projectName: string; tree: Deliverable[] }[] = [];
+
+  projectsMap.forEach((projectBids, projectName) => {
+    const bidMap = new Map<string, Deliverable & { children: Deliverable[] }>();
+    projectBids.forEach(b => bidMap.set(b.id, { ...b, children: [] }));
+
+    const tree: Deliverable[] = [];
+    projectBids.forEach(b => {
+      const node = bidMap.get(b.id)!;
+      if (b.parent_id && bidMap.has(b.parent_id)) {
+        bidMap.get(b.parent_id)!.children.push(node);
+      } else {
+        tree.push(node);
+      }
+    });
+    result.push({ projectName, tree });
+  });
+
+  return result;
+}
+
+function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail }: {
+  deliverable: Deliverable;
+  depth: number;
+  userRole?: string;
+  onOpenDetail: (d: Deliverable) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const hasChildren = d.children && d.children.length > 0;
+
+  return (
+    <div>
+      <div className="dmms-tree-node" style={{ marginLeft: depth * 24 }}>
+        <button className="dmms-tree-toggle" onClick={() => setExpanded(e => !e)}>
+          {hasChildren ? (
+            expanded
+              ? <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              : <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 6 15 12 9 18"/></svg>
+          ) : <span style={{ width: 12, display: 'inline-block' }} />}
+        </button>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{d.title}</span>
+            <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 12 }}>{formatCurrency(d.max_budget)}</span>
+            {d.due_date && <span className="meta">Due {formatDate(d.due_date)}</span>}
+          </div>
+          {d.brief && depth === 0 && (
+            <p className="body-sm" style={{ marginTop: 2, color: 'var(--fg-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {d.brief}
+            </p>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <Button size="sm" variant="secondary" onClick={() => onOpenDetail(d)}>Details</Button>
+          {userRole === 'contributor' && <BidButton deliverable={d} />}
+        </div>
+      </div>
+
+      {expanded && hasChildren && d.children!.map(child => (
+        <MarketplaceNode
+          key={child.id}
+          deliverable={child}
+          depth={depth + 1}
+          userRole={userRole}
+          onOpenDetail={onOpenDetail}
+        />
+      ))}
     </div>
   );
 }

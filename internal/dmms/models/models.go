@@ -78,6 +78,7 @@ type Deliverable struct {
 	AcceptanceCriteria string            `json:"acceptance_criteria" gorm:"column:acceptance_criteria;default:'[]'"` // JSON array
 	MaxBudget          float64           `json:"max_budget" gorm:"column:max_budget;not null;default:0"`
 	AcceptedBudget     *float64          `json:"accepted_budget" gorm:"column:accepted_budget"`
+	StartDate          *time.Time        `json:"start_date" gorm:"column:start_date"`
 	DueDate            *time.Time        `json:"due_date" gorm:"column:due_date"`
 	DependencyID       *string           `json:"dependency_id" gorm:"column:dependency_id;size:191"`
 	Visibility         Visibility        `json:"visibility" gorm:"not null;default:'public'"`
@@ -108,7 +109,7 @@ type Task struct {
 	AssignedTo     *string      `json:"assigned_to" gorm:"column:assigned_to;size:191"`
 	Title          string       `json:"title" gorm:"not null"`
 	Description    string       `json:"description" gorm:"default:''"`
-	Status         KanbanStatus `json:"status" gorm:"not null;default:'todo'"`
+	Status         KanbanStatus `json:"status" gorm:"not null;default:'backlog'"`
 	IsRequired     bool         `json:"is_required" gorm:"column:is_required;not null;default:0"`
 	DueDate        *time.Time   `json:"due_date" gorm:"column:due_date"`
 	Position       int          `json:"position" gorm:"not null;default:0"`

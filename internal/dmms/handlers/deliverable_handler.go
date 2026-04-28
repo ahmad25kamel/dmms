@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"finance-game/internal/dmms/middleware"
 	"finance-game/internal/dmms/models"
@@ -48,6 +49,7 @@ func (h *DeliverableHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Scope              string             `json:"scope"`
 		AcceptanceCriteria string             `json:"acceptance_criteria"`
 		MaxBudget          float64            `json:"max_budget"`
+		StartDate          *string            `json:"start_date"`
 		DueDate            *string            `json:"due_date"`
 		DependencyID       *string            `json:"dependency_id"`
 		Visibility         models.Visibility  `json:"visibility"`
@@ -70,6 +72,18 @@ func (h *DeliverableHandler) Create(w http.ResponseWriter, r *http.Request) {
 		MaxBudget:          body.MaxBudget,
 		DependencyID:       body.DependencyID,
 		Visibility:         body.Visibility,
+	}
+	if body.StartDate != nil && *body.StartDate != "" {
+		dt, err := time.Parse("2006-01-02", *body.StartDate)
+		if err == nil {
+			d.StartDate = &dt
+		}
+	}
+	if body.DueDate != nil && *body.DueDate != "" {
+		dt, err := time.Parse("2006-01-02", *body.DueDate)
+		if err == nil {
+			d.DueDate = &dt
+		}
 	}
 	if err := h.svc.Create(d); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to create deliverable")
@@ -101,6 +115,8 @@ func (h *DeliverableHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Scope              string            `json:"scope"`
 		AcceptanceCriteria string            `json:"acceptance_criteria"`
 		MaxBudget          float64           `json:"max_budget"`
+		StartDate          *string           `json:"start_date"`
+		DueDate            *string           `json:"due_date"`
 		Visibility         models.Visibility `json:"visibility"`
 	}
 	if err := Decode(r, &body); err != nil {
@@ -120,6 +136,26 @@ func (h *DeliverableHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Visibility != "" {
 		d.Visibility = body.Visibility
+	}
+	if body.StartDate != nil {
+		if *body.StartDate == "" {
+			d.StartDate = nil
+		} else {
+			dt, err := time.Parse("2006-01-02", *body.StartDate)
+			if err == nil {
+				d.StartDate = &dt
+			}
+		}
+	}
+	if body.DueDate != nil {
+		if *body.DueDate == "" {
+			d.DueDate = nil
+		} else {
+			dt, err := time.Parse("2006-01-02", *body.DueDate)
+			if err == nil {
+				d.DueDate = &dt
+			}
+		}
 	}
 	if err := h.repo.Update(d); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to update deliverable")
@@ -229,7 +265,7 @@ func (h *DeliverableHandler) CreateTask(w http.ResponseWriter, r *http.Request) 
 		Title:         body.Title,
 		IsRequired:    body.IsRequired,
 		Position:      body.Position,
-		Status:        models.KanbanTodo,
+		Status:        models.KanbanBacklog,
 	}
 
 	if err := h.tasks.Create(t); err != nil {
@@ -276,3 +312,133 @@ func (h *DeliverableHandler) DeleteTask(w http.ResponseWriter, r *http.Request) 
 	}
 	JSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
+
+// POST /projects/{projectId}/deliverables/import
+type ImportTask struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+type ImportDeliverable struct {
+	Title              string              `json:"title"`
+	Brief              string              `json:"brief"`
+	Scope              string              `json:"scope"`
+	AcceptanceCriteria string              `json:"acceptance_criteria"`
+	MaxBudget          float64             `json:"max_budget"`
+	StartDate          *string             `json:"start_date"`
+	DueDate            *string             `json:"due_date"`
+	Visibility         models.Visibility   `json:"visibility"`
+	Tasks              []ImportTask        `json:"tasks"`
+	Children           []ImportDeliverable `json:"children"`
+}
+
+func (h *DeliverableHandler) ImportJSON(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("projectId")
+	if projectID == "" {
+		Err(w, http.StatusBadRequest, "project_id is required")
+		return
+	}
+	userID := middleware.GetUserID(r)
+
+	var body []ImportDeliverable
+	if err := Decode(r, &body); err != nil {
+		Err(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var processDeliverable func(item ImportDeliverable, parentID *string)
+	processDeliverable = func(item ImportDeliverable, parentID *string) {
+		if item.Title == "" {
+			return
+		}
+		d := &models.Deliverable{
+			ProjectID:          projectID,
+			ParentID:           parentID,
+			Title:              item.Title,
+			Brief:              item.Brief,
+			Scope:              item.Scope,
+			AcceptanceCriteria: item.AcceptanceCriteria,
+			MaxBudget:          item.MaxBudget,
+			Visibility:         item.Visibility,
+		}
+		if d.AcceptanceCriteria == "" {
+			d.AcceptanceCriteria = "[]"
+		}
+		if d.Visibility == "" {
+			d.Visibility = models.VisibilityPublic
+		}
+		if item.StartDate != nil && *item.StartDate != "" {
+			dt, err := time.Parse("2006-01-02", *item.StartDate)
+			if err == nil {
+				d.StartDate = &dt
+			}
+		}
+		if item.DueDate != nil && *item.DueDate != "" {
+			dt, err := time.Parse("2006-01-02", *item.DueDate)
+			if err == nil {
+				d.DueDate = &dt
+			}
+		}
+		if err := h.svc.Create(d); err == nil {
+			// Create tasks
+			for i, task := range item.Tasks {
+				t := &models.Task{
+					ID:            uuid.New().String(),
+					DeliverableID: d.ID,
+					ProjectID:     projectID,
+					CreatedBy:     userID,
+					Title:         task.Title,
+					Description:   task.Description,
+					Status:        models.KanbanBacklog,
+					Position:      i,
+				}
+				h.tasks.Create(t)
+			}
+			// Process children
+			for _, child := range item.Children {
+				processDeliverable(child, &d.ID)
+			}
+		}
+	}
+
+	for _, item := range body {
+		processDeliverable(item, nil)
+	}
+
+	JSON(w, http.StatusCreated, map[string]interface{}{"success": true, "count": len(body)})
+}
+
+// GET /projects/{projectId}/deliverables/template
+func (h *DeliverableHandler) DownloadTemplate(w http.ResponseWriter, r *http.Request) {
+	template := []map[string]interface{}{
+		{
+			"title":               "Example Deliverable",
+			"brief":               "Brief description of the deliverable",
+			"scope":               "Scope of work",
+			"acceptance_criteria": "[\"Criteria 1\", \"Criteria 2\"]",
+			"max_budget":          1000.0,
+			"start_date":          "2026-05-01",
+			"due_date":            "2026-05-15",
+			"visibility":          "public",
+			"tasks": []map[string]string{
+				{"title": "Initial Research", "description": "Gather context"},
+				{"title": "Implementation", "description": "Write code"},
+			},
+			"children": []map[string]interface{}{
+				{
+					"title":               "Sub-deliverable",
+					"brief":               "Smaller component",
+					"scope":               "...",
+					"acceptance_criteria": "[]",
+					"max_budget":          500.0,
+					"start_date":          "2026-05-01",
+					"due_date":            "2026-05-07",
+					"visibility":          "public",
+					"tasks":               []map[string]string{},
+				},
+			},
+		},
+	}
+	JSON(w, http.StatusOK, template)
+}
+

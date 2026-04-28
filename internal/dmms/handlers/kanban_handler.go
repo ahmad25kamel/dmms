@@ -203,3 +203,21 @@ func (h *KanbanHandler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusCreated, newComment)
 }
 
+// PUT /kanban/reorder
+func (h *KanbanHandler) Reorder(w http.ResponseWriter, r *http.Request) {
+	var body []struct {
+		ID       string              `json:"id"`
+		Status   models.KanbanStatus `json:"status"`
+		Position int                 `json:"position"`
+	}
+	if err := Decode(r, &body); err != nil {
+		Err(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	for _, item := range body {
+		h.tasks.UpdatePosition(item.ID, item.Status, item.Position)
+	}
+
+	JSON(w, http.StatusOK, map[string]bool{"success": true})
+}
