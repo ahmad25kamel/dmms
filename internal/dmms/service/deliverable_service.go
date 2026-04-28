@@ -1,13 +1,13 @@
 package service
 
 import (
-	"database/sql"
 	"fmt"
 
 	"finance-game/internal/dmms/models"
 	"finance-game/internal/dmms/repository"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type DeliverableService struct {
@@ -15,7 +15,7 @@ type DeliverableService struct {
 	proposals    *repository.ProposalRepo
 	rewards      *repository.RewardRepo
 	projects     *repository.ProjectRepo
-	db           *sql.DB
+	db           *gorm.DB
 }
 
 func NewDeliverableService(
@@ -23,7 +23,7 @@ func NewDeliverableService(
 	proposals *repository.ProposalRepo,
 	rewards *repository.RewardRepo,
 	projects *repository.ProjectRepo,
-	db *sql.DB,
+	db *gorm.DB,
 ) *DeliverableService {
 	return &DeliverableService{deliverables: deliverables, proposals: proposals, rewards: rewards, projects: projects, db: db}
 }
@@ -65,119 +65,110 @@ func (s *DeliverableService) OpenForBids(id string) error {
 // AcceptProposal assigns a deliverable to a contributor, rejects all other proposals,
 // locks all descendants, and blocks parent from bidding.
 func (s *DeliverableService) AcceptProposal(proposalID string, pmID string) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		txDeliv := s.deliverables.WithDB(tx)
+		txProp := s.proposals.WithDB(tx)
 
-	proposal, err := s.proposals.FindByID(proposalID)
-	if err != nil {
-		return err
-	}
-	if proposal.Status != models.ProposalPending {
-		return fmt.Errorf("proposal is not pending")
-	}
-
-	deliverable, err := s.deliverables.FindByID(proposal.DeliverableID)
-	if err != nil {
-		return err
-	}
-	if deliverable.Status != models.DelivOpenForBids {
-		return fmt.Errorf("deliverable is not open for bids")
-	}
-	if proposal.BidAmount > deliverable.MaxBudget {
-		return fmt.Errorf("bid exceeds max budget")
-	}
-
-	// Assign deliverable
-	if err := s.deliverables.Assign(deliverable.ID, proposal.ContributorID, proposal.BidAmount); err != nil {
-		return err
-	}
-
-	// Accept winning proposal
-	if err := s.proposals.UpdateStatus(proposalID, models.ProposalAccepted); err != nil {
-		return err
-	}
-
-	// Reject all other proposals
-	if err := s.proposals.RejectOthers(deliverable.ID, proposalID); err != nil {
-		return err
-	}
-
-	// Lock all descendant deliverables (set owner to same contributor)
-	descendantIDs, err := s.deliverables.GetAllDescendantIDs(deliverable.ID)
-	if err != nil {
-		return err
-	}
-	for _, childID := range descendantIDs {
-		if err := s.deliverables.UpdateStatus(childID, models.DelivAssigned); err != nil {
+		proposal, err := txProp.FindByID(proposalID)
+		if err != nil {
 			return err
 		}
-	}
+		if proposal.Status != models.ProposalPending {
+			return fmt.Errorf("proposal is not pending")
+		}
 
-	// Update project budget_allocated
-	if err := s.recomputeProjectBudget(tx, deliverable.ProjectID); err != nil {
-		return err
-	}
+		deliverable, err := txDeliv.FindByID(proposal.DeliverableID)
+		if err != nil {
+			return err
+		}
+		if deliverable.Status != models.DelivOpenForBids {
+			return fmt.Errorf("deliverable is not open for bids")
+		}
+		if proposal.BidAmount > deliverable.MaxBudget {
+			return fmt.Errorf("bid exceeds max budget")
+		}
 
-	return tx.Commit()
+		// Assign deliverable
+		if err := txDeliv.Assign(deliverable.ID, proposal.ContributorID, proposal.BidAmount); err != nil {
+			return err
+		}
+
+		// Accept winning proposal
+		if err := txProp.UpdateStatus(proposalID, models.ProposalAccepted); err != nil {
+			return err
+		}
+
+		// Reject all other proposals
+		if err := txProp.RejectOthers(deliverable.ID, proposalID); err != nil {
+			return err
+		}
+
+		// Lock all descendant deliverables (set owner to same contributor)
+		descendantIDs, err := txDeliv.GetAllDescendantIDs(deliverable.ID)
+		if err != nil {
+			return err
+		}
+		for _, childID := range descendantIDs {
+			if err := txDeliv.UpdateStatus(childID, models.DelivAssigned); err != nil {
+				return err
+			}
+		}
+
+		// Update project budget_allocated
+		return s.recomputeProjectBudget(tx, deliverable.ProjectID)
+	})
 }
 
 // ApproveSubmission approves a submission, creates ledger entry, updates budget.
 func (s *DeliverableService) ApproveSubmission(submissionID, reviewerID string, submissionRepo *repository.SubmissionRepo) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		txDeliv := s.deliverables.WithDB(tx)
+		txReward := s.rewards.WithDB(tx)
+		txSub := submissionRepo.WithDB(tx)
 
-	sub, err := submissionRepo.FindByID(submissionID)
-	if err != nil {
-		return err
-	}
-	if sub.Status != models.SubmissionPending {
-		return fmt.Errorf("submission is not pending")
-	}
+		sub, err := txSub.FindByID(submissionID)
+		if err != nil {
+			return err
+		}
+		if sub.Status != models.SubmissionPending {
+			return fmt.Errorf("submission is not pending")
+		}
 
-	deliverable, err := s.deliverables.FindByID(sub.DeliverableID)
-	if err != nil {
-		return err
-	}
+		deliverable, err := txDeliv.FindByID(sub.DeliverableID)
+		if err != nil {
+			return err
+		}
 
-	// Mark deliverable approved
-	if err := s.deliverables.UpdateStatus(deliverable.ID, models.DelivApproved); err != nil {
-		return err
-	}
+		// Mark deliverable approved
+		if err := txDeliv.UpdateStatus(deliverable.ID, models.DelivApproved); err != nil {
+			return err
+		}
 
-	// Review submission
-	if err := submissionRepo.Review(submissionID, models.SubmissionApproved, reviewerID, ""); err != nil {
-		return err
-	}
+		// Review submission
+		if err := txSub.Review(submissionID, models.SubmissionApproved, reviewerID, ""); err != nil {
+			return err
+		}
 
-	// Create reward ledger entry
-	amount := deliverable.MaxBudget
-	if deliverable.AcceptedBudget != nil {
-		amount = *deliverable.AcceptedBudget
-	}
-	entry := &models.RewardLedgerEntry{
-		ID:            uuid.New().String(),
-		UserID:        sub.ContributorID,
-		DeliverableID: deliverable.ID,
-		ProjectID:     deliverable.ProjectID,
-		Amount:        amount,
-		ApprovedBy:    reviewerID,
-	}
-	if err := s.rewards.Create(entry); err != nil {
-		return err
-	}
+		// Create reward ledger entry
+		amount := deliverable.MaxBudget
+		if deliverable.AcceptedBudget != nil {
+			amount = *deliverable.AcceptedBudget
+		}
+		entry := &models.RewardLedgerEntry{
+			ID:            uuid.New().String(),
+			UserID:        sub.ContributorID,
+			DeliverableID: deliverable.ID,
+			ProjectID:     deliverable.ProjectID,
+			Amount:        amount,
+			ApprovedBy:    reviewerID,
+		}
+		if err := txReward.Create(entry); err != nil {
+			return err
+		}
 
-	// Recompute project budget (budget_saved = sum of max_budget - accepted_budget for approved)
-	if err := s.recomputeProjectBudget(tx, deliverable.ProjectID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		// Recompute project budget
+		return s.recomputeProjectBudget(tx, deliverable.ProjectID)
+	})
 }
 
 func (s *DeliverableService) Reassign(deliverableID string) error {
@@ -204,24 +195,30 @@ func (s *DeliverableService) Reopen(deliverableID string) error {
 }
 
 // recomputeProjectBudget recalculates budget_allocated and budget_saved from deliverables.
-func (s *DeliverableService) recomputeProjectBudget(tx *sql.Tx, projectID string) error {
-	var allocated, saved sql.NullFloat64
-	err := tx.QueryRow(`
-		SELECT
-			SUM(COALESCE(accepted_budget,0)) as allocated,
-			SUM(CASE WHEN status='approved' THEN max_budget - COALESCE(accepted_budget,0) ELSE 0 END) as saved
-		FROM dmms_deliverables
-		WHERE project_id=? AND status IN ('assigned','in_progress','submitted','approved')`,
-		projectID,
-	).Scan(&allocated, &saved)
+func (s *DeliverableService) recomputeProjectBudget(tx *gorm.DB, projectID string) error {
+	var res struct {
+		Allocated float64
+		Saved     float64
+	}
+
+	err := tx.Table("dmms_deliverables").
+		Select(`
+			SUM(COALESCE(accepted_budget, 0)) as allocated,
+			SUM(CASE WHEN status='approved' THEN max_budget - COALESCE(accepted_budget, 0) ELSE 0 END) as saved
+		`).
+		Where("project_id = ? AND status IN ('assigned', 'in_progress', 'submitted', 'approved')", projectID).
+		Scan(&res).Error
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(
-		`UPDATE dmms_projects SET budget_allocated=?,budget_saved=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-		allocated.Float64, saved.Float64, projectID,
-	)
-	return err
+
+	return tx.Table("dmms_projects").
+		Where("id = ?", projectID).
+		UpdateColumns(map[string]interface{}{
+			"budget_allocated": res.Allocated,
+			"budget_saved":     res.Saved,
+			"updated_at":       gorm.Expr("CURRENT_TIMESTAMP"),
+		}).Error
 }
 
 func (s *DeliverableService) BuildTree(projectID string) ([]*models.Deliverable, error) {

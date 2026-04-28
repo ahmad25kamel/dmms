@@ -19,7 +19,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	db, err := database.Open(cfg.DBPath)
+	db, err := database.Open(cfg)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}

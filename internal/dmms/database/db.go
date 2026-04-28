@@ -1,36 +1,41 @@
 package database
 
 import (
-	"database/sql"
-	_ "embed"
 	"fmt"
 	"log"
 
-	_ "modernc.org/sqlite"
+	"finance-game/internal/dmms/config"
+	"finance-game/internal/dmms/models"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-//go:embed migrations.sql
-var migrationSQL string
-
-func Open(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+func Open(cfg *config.Config) (*gorm.DB, error) {
+	dsn := cfg.GetMySQLDSN()
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("open db: %w", err)
+		return nil, fmt.Errorf("open gorm db: %w", err)
 	}
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		return nil, fmt.Errorf("enable fk: %w", err)
-	}
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		return nil, fmt.Errorf("wal mode: %w", err)
-	}
+
 	if err := runMigrations(db); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	log.Println("DMMS database ready:", path)
+	log.Println("DMMS MySQL database ready (GORM)")
 	return db, nil
 }
 
-func runMigrations(db *sql.DB) error {
-	_, err := db.Exec(migrationSQL)
-	return err
+func runMigrations(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&models.User{},
+		&models.Project{},
+		&models.Deliverable{},
+		&models.Task{},
+		&models.TaskComment{},
+		&models.Proposal{},
+		&models.Submission{},
+		&models.RewardLedgerEntry{},
+	)
 }

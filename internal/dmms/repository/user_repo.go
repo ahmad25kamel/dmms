@@ -1,50 +1,44 @@
 package repository
 
 import (
-	"database/sql"
 	"fmt"
 
 	"finance-game/internal/dmms/models"
+	"gorm.io/gorm"
 )
 
 type UserRepo struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-func NewUserRepo(db *sql.DB) *UserRepo {
+func NewUserRepo(db *gorm.DB) *UserRepo {
+	return &UserRepo{db: db}
+}
+
+func (r *UserRepo) WithDB(db *gorm.DB) *UserRepo {
 	return &UserRepo{db: db}
 }
 
 func (r *UserRepo) Create(u *models.User, passwordHash string) error {
-	_, err := r.db.Exec(
-		`INSERT INTO dmms_users (id, email, password_hash, name, role) VALUES (?,?,?,?,?)`,
-		u.ID, u.Email, passwordHash, u.Name, u.Role,
-	)
-	return err
+	u.PasswordHash = passwordHash
+	return r.db.Create(u).Error
 }
 
 func (r *UserRepo) FindByEmail(email string) (*models.User, string, error) {
-	row := r.db.QueryRow(
-		`SELECT id, email, password_hash, name, role, created_at FROM dmms_users WHERE email=?`, email,
-	)
 	var u models.User
-	var hash string
-	if err := row.Scan(&u.ID, &u.Email, &hash, &u.Name, &u.Role, &u.CreatedAt); err != nil {
-		if err == sql.ErrNoRows {
+	if err := r.db.Where("email = ?", email).First(&u).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
 			return nil, "", fmt.Errorf("user not found")
 		}
 		return nil, "", err
 	}
-	return &u, hash, nil
+	return &u, u.PasswordHash, nil
 }
 
 func (r *UserRepo) FindByID(id string) (*models.User, error) {
-	row := r.db.QueryRow(
-		`SELECT id, email, name, role, created_at FROM dmms_users WHERE id=?`, id,
-	)
 	var u models.User
-	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.CreatedAt); err != nil {
-		if err == sql.ErrNoRows {
+	if err := r.db.First(&u, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("user not found")
 		}
 		return nil, err
@@ -53,28 +47,17 @@ func (r *UserRepo) FindByID(id string) (*models.User, error) {
 }
 
 func (r *UserRepo) List() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, email, name, role, created_at FROM dmms_users ORDER BY created_at DESC`)
-	if err != nil {
+	var users []*models.User
+	if err := r.db.Order("created_at DESC").Find(&users).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var users []*models.User
-	for rows.Next() {
-		var u models.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.CreatedAt); err != nil {
-			return nil, err
-		}
-		users = append(users, &u)
-	}
-	return users, rows.Err()
+	return users, nil
 }
 
 func (r *UserRepo) UpdateRole(id string, role models.Role) error {
-	_, err := r.db.Exec(`UPDATE dmms_users SET role=? WHERE id=?`, role, id)
-	return err
+	return r.db.Model(&models.User{}).Where("id = ?", id).Update("role", role).Error
 }
 
 func (r *UserRepo) Delete(id string) error {
-	_, err := r.db.Exec(`DELETE FROM dmms_users WHERE id=?`, id)
-	return err
+	return r.db.Delete(&models.User{}, "id = ?", id).Error
 }
