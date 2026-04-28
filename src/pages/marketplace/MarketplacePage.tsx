@@ -36,23 +36,29 @@ export function MarketplacePage() {
       {bids.length === 0 ? (
         <EmptyState title="No open bids" description="There are no deliverables open for bidding right now." />
       ) : (
-        <div className="dmms-grid dmms-grid-auto">
-          {bids.map(d => (
-            <Card key={d.id}>
-              <div style={{ marginBottom: 8 }}>
-                {d.project_name && <p className="eyebrow" style={{ marginBottom: 4 }}>{d.project_name}</p>}
-                <h4 style={{ marginBottom: 4 }}>{d.title}</h4>
-                {d.brief && <p className="body-sm" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.brief}</p>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {Array.from(new Set(bids.map(b => b.project_name || 'Individual Bids'))).map(projectName => (
+            <div key={projectName}>
+              <h3 style={{ marginBottom: 12, fontSize: 16, borderBottom: '1px solid var(--border-1)', paddingBottom: 8 }}>{projectName}</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {bids.filter(b => (b.project_name || 'Individual Bids') === projectName).map(d => (
+                  <div key={d.id} className="dmms-tree-node" style={{ background: 'var(--bg-1)', padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{d.title}</span>
+                        <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 12 }}>{formatCurrency(d.max_budget)}</span>
+                        {d.due_date && <span className="meta">Due {formatDate(d.due_date)}</span>}
+                      </div>
+                      {d.brief && <p className="body-sm" style={{ marginTop: 2, color: 'var(--fg-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.brief}</p>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <Button size="sm" variant="secondary" onClick={() => openDetail(d)}>Details</Button>
+                      {user?.role === 'contributor' && <BidButton deliverable={d} />}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 13 }}>Up to {formatCurrency(d.max_budget)}</span>
-                {d.due_date && <span className="meta">{formatDate(d.due_date)}</span>}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Button size="sm" variant="secondary" onClick={() => openDetail(d)}>Details</Button>
-                {user?.role === 'contributor' && <BidButton deliverable={d} />}
-              </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}

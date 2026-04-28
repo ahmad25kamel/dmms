@@ -97,6 +97,23 @@ func (r *TaskRepo) ListByProject(projectID string) ([]*models.Task, error) {
 	return out, rows.Err()
 }
 
+func (r *TaskRepo) ListAll() ([]*models.Task, error) {
+	rows, err := r.db.Query(selectTask + ` ORDER BY t.status, t.position`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.Task
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 func (r *TaskRepo) ListForContributor(userID string) ([]*models.Task, error) {
 	rows, err := r.db.Query(selectTask+`
 		WHERE t.assigned_to=? 
@@ -164,8 +181,24 @@ func (r *TaskRepo) ListComments(taskID string) ([]*models.TaskComment, error) {
 	return out, rows.Err()
 }
 
-func (r *TaskRepo) CreateComment(c *models.TaskComment) error {
+func (r *TaskRepo) GetComment(id string) (*models.TaskComment, error) {
+	row := r.db.QueryRow(`
+		SELECT c.id, c.task_id, c.author_id, COALESCE(u.name,'') as author_name, c.body, c.created_at
+		FROM dmms_task_comments c
+		LEFT JOIN dmms_users u ON u.id=c.author_id
+		WHERE c.id=?`, id)
+	var c models.TaskComment
+	if err := row.Scan(&c.ID, &c.TaskID, &c.AuthorID, &c.AuthorName, &c.Body, &c.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (r *TaskRepo) CreateComment(c *models.TaskComment) (*models.TaskComment, error) {
 	_, err := r.db.Exec(`INSERT INTO dmms_task_comments (id,task_id,author_id,body) VALUES (?,?,?,?)`, c.ID, c.TaskID, c.AuthorID, c.Body)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return r.GetComment(c.ID)
 }
 

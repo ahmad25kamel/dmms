@@ -21,11 +21,15 @@ func NewKanbanHandler(tasks *repository.TaskRepo) *KanbanHandler {
 // GET /kanban?project_id=
 func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
-	if projectID == "" {
-		Err(w, http.StatusBadRequest, "project_id is required")
-		return
+	var tasks []*models.Task
+	var err error
+
+	if projectID != "" {
+		tasks, err = h.tasks.ListByProject(projectID)
+	} else {
+		tasks, err = h.tasks.ListAll()
 	}
-	tasks, err := h.tasks.ListByProject(projectID)
+
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to list tasks")
 		return
@@ -191,10 +195,11 @@ func (h *KanbanHandler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		AuthorID: authorID,
 		Body:     body.Body,
 	}
-	if err := h.tasks.CreateComment(c); err != nil {
+	newComment, err := h.tasks.CreateComment(c)
+	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to create comment")
 		return
 	}
-	JSON(w, http.StatusCreated, c)
+	JSON(w, http.StatusCreated, newComment)
 }
 

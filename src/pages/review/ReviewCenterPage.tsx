@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { submissionsApi } from '../../api';
+import { submissionsApi, deliverablesApi } from '../../api';
 import type { Submission } from '../../types';
 import { Badge, Button, Textarea, Modal, FormField, Spinner, EmptyState } from '../../components/ui';
 import { formatDate, submissionStatusColor } from '../../lib/statusColors';
@@ -18,7 +18,7 @@ export function ReviewCenterPage() {
 
   useEffect(() => {
     if (selected) {
-      submissionsApi.listHistory(selected.deliverable_id).then(setHistory);
+      deliverablesApi.listHistory(selected.deliverable_id).then(setHistory);
     } else {
       setHistory([]);
     }
@@ -109,9 +109,14 @@ export function ReviewCenterPage() {
             {selected.pr_links && selected.pr_links !== '[]' && (
               <div>
                 <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>PR Links</p>
-                {JSON.parse(selected.pr_links).map((link: string, i: number) => (
-                  <a key={i} href={link} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 13, marginTop: 2 }}>{link}</a>
-                ))}
+                {(() => {
+                  try {
+                    const links = JSON.parse(selected.pr_links);
+                    return Array.isArray(links) ? links.map((link: string, i: number) => (
+                      <a key={i} href={link} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 13, marginTop: 2 }}>{link}</a>
+                    )) : null;
+                  } catch { return null; }
+                })()}
               </div>
             )}
             <FormField label="Review Notes (optional)">

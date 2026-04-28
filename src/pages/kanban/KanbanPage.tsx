@@ -186,12 +186,28 @@ function KanbanBoard({ tasks, onMove, onSelect }: {
   onMove: (id: string, status: KanbanStatus) => void;
   onSelect: (t: KanbanTask) => void;
 }) {
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, status: KanbanStatus) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('taskId');
+    if (id) onMove(id, status);
+  };
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'start' }}>
       {COLUMNS.map(col => {
         const colTasks = tasks.filter(t => t.status === col.key);
         return (
-          <div key={col.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            key={col.key}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, col.key)}
+            style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+          >
             {/* Column header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 2px' }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: col.color, flexShrink: 0 }} />
@@ -200,9 +216,9 @@ function KanbanBoard({ tasks, onMove, onSelect }: {
             </div>
 
             {/* Cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 80 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 150, background: 'var(--bg-2)', borderRadius: 'var(--radius-lg)', padding: 4 }}>
               {colTasks.map(t => (
-                <KanbanCard key={t.id} task={t} onMove={onMove} onSelect={onSelect} columns={COLUMNS} />
+                <KanbanCard key={t.id} task={t} onSelect={onSelect} />
               ))}
             </div>
           </div>
@@ -212,24 +228,30 @@ function KanbanBoard({ tasks, onMove, onSelect }: {
   );
 }
 
-function KanbanCard({ task: t, onMove, onSelect, columns }: {
+function KanbanCard({ task: t, onSelect }: {
   task: KanbanTask;
-  onMove: (id: string, status: KanbanStatus) => void;
   onSelect: (t: KanbanTask) => void;
-  columns: typeof COLUMNS;
 }) {
   const isOverdue = t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done';
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('taskId', t.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
   return (
     <div
+      draggable
+      onDragStart={handleDragStart}
       onClick={() => onSelect(t)}
       style={{
         background: 'var(--bg-1)',
         border: '1px solid var(--border-1)',
         borderRadius: 'var(--radius-md)',
         padding: '12px 14px',
-        cursor: 'pointer',
+        cursor: 'grab',
         boxShadow: 'var(--shadow-1)',
-        transition: 'box-shadow var(--dur-base) var(--ease-out)',
+        transition: 'all var(--dur-base) var(--ease-out)',
       }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = 'var(--shadow-2)')}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'var(--shadow-1)')}
@@ -269,23 +291,6 @@ function KanbanCard({ task: t, onMove, onSelect, columns }: {
         )}
       </div>
 
-      {/* Move buttons */}
-      <div style={{ display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-        {columns.filter(c => c.key !== t.status).map(c => (
-          <button
-            key={c.key}
-            onClick={() => onMove(t.id, c.key)}
-            style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-pill)',
-              border: '1px solid var(--border-1)', background: 'var(--bg-2)',
-              cursor: 'pointer', color: 'var(--fg-3)', fontWeight: 500,
-              transition: 'background var(--dur-fast)',
-            }}
-          >
-            → {c.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
