@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -28,6 +29,24 @@ func NewDeliverableHandler(
 	return &DeliverableHandler{repo: repo, tasks: tasks, svc: svc, projects: projects}
 }
 
+func normalizeAcceptanceCriteria(input interface{}) string {
+	if input == nil {
+		return "[]"
+	}
+	switch v := input.(type) {
+	case string:
+		if v == "" {
+			return "[]"
+		}
+		return v
+	case []interface{}:
+		b, _ := json.Marshal(v)
+		return string(b)
+	default:
+		return "[]"
+	}
+}
+
 func (h *DeliverableHandler) Tree(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("projectId")
 	tree, err := h.svc.BuildTree(projectID)
@@ -48,7 +67,7 @@ func (h *DeliverableHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Title              string             `json:"title"`
 		Brief              string             `json:"brief"`
 		Scope              string             `json:"scope"`
-		AcceptanceCriteria string             `json:"acceptance_criteria"`
+		AcceptanceCriteria interface{}        `json:"acceptance_criteria"`
 		MaxBudget          float64            `json:"max_budget"`
 		StartDate          *string            `json:"start_date"`
 		DueDate            *string            `json:"due_date"`
@@ -69,7 +88,7 @@ func (h *DeliverableHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Title:              body.Title,
 		Brief:              body.Brief,
 		Scope:              body.Scope,
-		AcceptanceCriteria: body.AcceptanceCriteria,
+		AcceptanceCriteria: normalizeAcceptanceCriteria(body.AcceptanceCriteria),
 		MaxBudget:          body.MaxBudget,
 		DependencyID:       body.DependencyID,
 		Visibility:         body.Visibility,
@@ -114,7 +133,7 @@ func (h *DeliverableHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Title              string            `json:"title"`
 		Brief              string            `json:"brief"`
 		Scope              string            `json:"scope"`
-		AcceptanceCriteria string            `json:"acceptance_criteria"`
+		AcceptanceCriteria interface{}       `json:"acceptance_criteria"`
 		MaxBudget          float64           `json:"max_budget"`
 		StartDate          *string           `json:"start_date"`
 		DueDate            *string           `json:"due_date"`
@@ -129,8 +148,8 @@ func (h *DeliverableHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	d.Brief = body.Brief
 	d.Scope = body.Scope
-	if body.AcceptanceCriteria != "" {
-		d.AcceptanceCriteria = body.AcceptanceCriteria
+	if body.AcceptanceCriteria != nil {
+		d.AcceptanceCriteria = normalizeAcceptanceCriteria(body.AcceptanceCriteria)
 	}
 	if body.MaxBudget > 0 {
 		d.MaxBudget = body.MaxBudget
@@ -162,15 +181,22 @@ func (h *DeliverableHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to update deliverable")
 		return
 	}
+	h.svc.SyncBudget(d.ProjectID)
 	JSON(w, http.StatusOK, d)
 }
 
 func (h *DeliverableHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	d, err := h.repo.FindByID(id)
+	if err != nil {
+		Err(w, http.StatusNotFound, "deliverable not found")
+		return
+	}
 	if err := h.repo.Delete(id); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to delete deliverable")
 		return
 	}
+	h.svc.SyncBudget(d.ProjectID)
 	JSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
 
@@ -324,7 +350,7 @@ type ImportDeliverable struct {
 	Title              string              `json:"title"`
 	Brief              string              `json:"brief"`
 	Scope              string              `json:"scope"`
-	AcceptanceCriteria string              `json:"acceptance_criteria"`
+	AcceptanceCriteria interface{}       `json:"acceptance_criteria"`
 	MaxBudget          float64             `json:"max_budget"`
 	StartDate          *string             `json:"start_date"`
 	DueDate            *string             `json:"due_date"`
@@ -376,7 +402,7 @@ func (h *DeliverableHandler) ImportJSON(w http.ResponseWriter, r *http.Request) 
 			Title:              item.Title,
 			Brief:              item.Brief,
 			Scope:              item.Scope,
-			AcceptanceCriteria: item.AcceptanceCriteria,
+			AcceptanceCriteria: normalizeAcceptanceCriteria(item.AcceptanceCriteria),
 			MaxBudget:          item.MaxBudget,
 			Visibility:         item.Visibility,
 		}
@@ -404,6 +430,7 @@ func (h *DeliverableHandler) ImportJSON(w http.ResponseWriter, r *http.Request) 
 		insertedCount++
 
 		// Create tasks
+		fmt.Printf("DEBUG: Creating %d tasks for deliverable '%s'\n", len(item.Tasks), d.Title)
 		for i, task := range item.Tasks {
 			t := &models.Task{
 				ID:            uuid.New().String(),
@@ -415,7 +442,10 @@ func (h *DeliverableHandler) ImportJSON(w http.ResponseWriter, r *http.Request) 
 				Status:        models.KanbanBacklog,
 				Position:      i,
 			}
-			h.tasks.Create(t)
+			if err := h.tasks.Create(t); err != nil {
+				fmt.Printf("ERROR: Failed to create task '%s': %v\n", task.Title, err)
+				return fmt.Errorf("failed to create task '%s': %v", task.Title, err)
+			}
 		}
 		// Process children
 		for _, child := range item.Children {
@@ -433,6 +463,7 @@ func (h *DeliverableHandler) ImportJSON(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	h.svc.SyncBudget(projectID)
 	JSON(w, http.StatusCreated, map[string]interface{}{"success": true, "count": insertedCount})
 }
 

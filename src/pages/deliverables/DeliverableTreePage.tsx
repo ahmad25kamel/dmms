@@ -18,7 +18,23 @@ export function DeliverableTreePage() {
   const reload = useCallback(() => {
     if (!projectId) return;
     Promise.all([projectsApi.get(projectId), deliverablesApi.tree(projectId)])
-      .then(([p, t]) => { setProject(p); setTree(t); })
+      .then(([p, t]) => {
+        setProject(p);
+        const sortTree = (nodes: Deliverable[]): Deliverable[] => {
+          return nodes.map(n => ({
+            ...n,
+            children: n.children ? sortTree(n.children) : []
+          })).sort((a, b) => {
+            const s1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
+            const s2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
+            if (s1 !== s2) return s1 - s2;
+            const e1 = a.due_date ? new Date(a.due_date).getTime() : -Infinity;
+            const e2 = b.due_date ? new Date(b.due_date).getTime() : -Infinity;
+            return e2 - e1;
+          });
+        };
+        setTree(sortTree(t));
+      })
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -145,7 +161,7 @@ function DeliverableNode({ deliverable: d, depth, projectId, onAddChild, onEdit,
             {d.visibility === 'private' && <Badge color="gray">Private</Badge>}
           </div>
           <div className="meta" style={{ marginTop: 2, display: 'flex', gap: 16 }}>
-            {/* <span>Max {formatCurrency(d.max_budget)}</span> */}
+            <span>Max {formatCurrency(d.max_budget)}</span>
             {d.accepted_budget != null && <span>Accepted {formatCurrency(d.accepted_budget)}</span>}
             {d.due_date && <span>Due {formatDate(d.due_date)}</span>}
           </div>
@@ -396,8 +412,14 @@ function EditDeliverableModal({ deliverable, onClose, onSaved }: {
           <Textarea value={form.scope} onChange={e => set('scope', e.target.value)} rows={2} placeholder="What's in and out of scope" />
         </FormField>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <FormField label="Max Budget (Rp)">
-            <Input type="number" value={form.max_budget} onChange={e => set('max_budget', e.target.value)} min="0" />
+          <FormField label="Max Budget (Rp)" hint={deliverable.children && deliverable.children.length > 0 ? "Calculated from sub-deliverables" : undefined}>
+            <Input
+              type="number"
+              value={form.max_budget}
+              onChange={e => set('max_budget', e.target.value)}
+              min="0"
+              disabled={deliverable.children && deliverable.children.length > 0}
+            />
           </FormField>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <FormField label="Start Date">

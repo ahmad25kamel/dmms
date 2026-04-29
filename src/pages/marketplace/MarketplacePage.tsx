@@ -94,7 +94,22 @@ function buildTreesByProject(bids: Deliverable[]) {
         tree.push(node);
       }
     });
-    result.push({ projectName, tree });
+
+    const sortTree = (nodes: Deliverable[]): Deliverable[] => {
+      return nodes.map(n => ({
+        ...n,
+        children: n.children ? sortTree(n.children) : []
+      })).sort((a, b) => {
+        const s1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
+        const s2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
+        if (s1 !== s2) return s1 - s2;
+        const e1 = a.due_date ? new Date(a.due_date).getTime() : -Infinity;
+        const e2 = b.due_date ? new Date(b.due_date).getTime() : -Infinity;
+        return e2 - e1;
+      });
+    };
+
+    result.push({ projectName, tree: sortTree(tree) });
   });
 
   return result;

@@ -114,7 +114,7 @@ type Task struct {
 	CreatedBy      string       `json:"created_by" gorm:"column:created_by;not null;size:191"`
 	AssignedTo     *string      `json:"assigned_to" gorm:"column:assigned_to;size:191"`
 	Title          string       `json:"title" gorm:"not null"`
-	Description    string       `json:"description" gorm:"default:''"`
+	Description    string       `json:"description" gorm:"type:text"`
 	Status         KanbanStatus `json:"status" gorm:"not null;default:'backlog'"`
 	IsRequired     bool         `json:"is_required" gorm:"column:is_required;not null;default:0"`
 	DueDate        *time.Time   `json:"due_date" gorm:"column:due_date"`

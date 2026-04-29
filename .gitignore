@@ -47,3 +47,4 @@ finance-game
 .claude/
 dist/
 bookmarks-api
+/*.json

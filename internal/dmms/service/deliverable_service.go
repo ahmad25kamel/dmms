@@ -39,7 +39,16 @@ func (s *DeliverableService) Create(d *models.Deliverable) error {
 	if d.Visibility == "" {
 		d.Visibility = models.VisibilityPublic
 	}
-	return s.deliverables.Create(d)
+	if err := s.deliverables.Create(d); err != nil {
+		return err
+	}
+	return s.SyncBudget(d.ProjectID)
+}
+
+func (s *DeliverableService) SyncBudget(projectID string) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		return s.recomputeProjectBudget(tx, projectID)
+	})
 }
 
 // OpenForBids transitions a deliverable to open_for_bids.
@@ -204,6 +213,53 @@ func (s *DeliverableService) Reopen(deliverableID string) error {
 
 // recomputeProjectBudget recalculates budget_allocated and budget_saved from deliverables.
 func (s *DeliverableService) recomputeProjectBudget(tx *gorm.DB, projectID string) error {
+	var all []*models.Deliverable
+	if err := tx.Where("project_id = ?", projectID).Find(&all).Error; err != nil {
+		return err
+	}
+
+	idx := make(map[string]*models.Deliverable, len(all))
+	for _, d := range all {
+		idx[d.ID] = d
+		d.Children = nil
+	}
+	var roots []*models.Deliverable
+	for _, d := range all {
+		if d.ParentID == nil {
+			roots = append(roots, d)
+		} else if parent, ok := idx[*d.ParentID]; ok {
+			parent.Children = append(parent.Children, d)
+		}
+	}
+
+	var calc func(*models.Deliverable) float64
+	var changed []*models.Deliverable
+	calc = func(d *models.Deliverable) float64 {
+		old := d.MaxBudget
+		if len(d.Children) > 0 {
+			var sum float64
+			for _, c := range d.Children {
+				sum += calc(c)
+			}
+			d.MaxBudget = sum
+		}
+		if d.MaxBudget != old {
+			changed = append(changed, d)
+		}
+		return d.MaxBudget
+	}
+
+	var total float64
+	for _, r := range roots {
+		total += calc(r)
+	}
+
+	for _, d := range changed {
+		if err := tx.Model(d).Update("max_budget", d.MaxBudget).Error; err != nil {
+			return err
+		}
+	}
+
 	var res struct {
 		Allocated float64
 		Saved     float64
@@ -223,6 +279,7 @@ func (s *DeliverableService) recomputeProjectBudget(tx *gorm.DB, projectID strin
 	return tx.Table("dmms_projects").
 		Where("id = ?", projectID).
 		UpdateColumns(map[string]interface{}{
+			"budget_total":     total,
 			"budget_allocated": res.Allocated,
 			"budget_saved":     res.Saved,
 			"updated_at":       gorm.Expr("CURRENT_TIMESTAMP"),
@@ -241,6 +298,7 @@ func buildTree(flat []*models.Deliverable) []*models.Deliverable {
 	idx := make(map[string]*models.Deliverable, len(flat))
 	for _, d := range flat {
 		idx[d.ID] = d
+		d.Children = nil
 	}
 	var roots []*models.Deliverable
 	for _, d := range flat {
@@ -250,5 +308,21 @@ func buildTree(flat []*models.Deliverable) []*models.Deliverable {
 			parent.Children = append(parent.Children, d)
 		}
 	}
+
+	var calc func(*models.Deliverable) float64
+	calc = func(d *models.Deliverable) float64 {
+		if len(d.Children) > 0 {
+			var sum float64
+			for _, c := range d.Children {
+				sum += calc(c)
+			}
+			d.MaxBudget = sum
+		}
+		return d.MaxBudget
+	}
+	for _, r := range roots {
+		calc(r)
+	}
+
 	return roots
 }

@@ -54,8 +54,9 @@ func (r *ProjectRepo) Update(p *models.Project) error {
 	return r.db.Save(p).Error
 }
 
-func (r *ProjectRepo) UpdateBudget(id string, allocated, saved float64) error {
+func (r *ProjectRepo) UpdateBudget(id string, total, allocated, saved float64) error {
 	return r.db.Model(&models.Project{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"budget_total":     total,
 		"budget_allocated": allocated,
 		"budget_saved":     saved,
 	}).Error

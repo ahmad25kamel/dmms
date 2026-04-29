@@ -66,9 +66,16 @@ export function ProjectDetailPage() {
           ...n,
           children: n.children ? sortTree(n.children) : []
         })).sort((a, b) => {
-          const d1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
-          const d2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
-          return d1 - d2;
+          const s1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
+          const s2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
+          
+          if (s1 !== s2) {
+            return s1 - s2;
+          }
+          
+          const e1 = a.due_date ? new Date(a.due_date).getTime() : -Infinity;
+          const e2 = b.due_date ? new Date(b.due_date).getTime() : -Infinity;
+          return e2 - e1;
         });
       };
       setTree(sortTree(t));
