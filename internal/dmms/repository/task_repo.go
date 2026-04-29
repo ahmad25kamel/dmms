@@ -45,13 +45,13 @@ func (r *TaskRepo) Delete(id string) error {
 
 func (r *TaskRepo) Get(id string) (*models.Task, error) {
 	var t models.Task
-	err := r.db.Table("dmms_tasks t").
-		Select("t.*, COALESCE(p.name,'') as project_name, COALESCE(d.title,'') as deliverable_title, COALESCE(u.name,'') as assigned_to_name, COALESCE(cu.name,'') as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=t.id) as comment_count").
-		Joins("LEFT JOIN dmms_projects p ON p.id=t.project_id").
-		Joins("LEFT JOIN dmms_deliverables d ON d.id=t.deliverable_id").
-		Joins("LEFT JOIN dmms_users u ON u.id=t.assigned_to").
-		Joins("LEFT JOIN dmms_users cu ON cu.id=t.created_by").
-		Where("t.id = ?", id).Scan(&t).Error
+	err := r.db.Model(&models.Task{}).
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		InnerJoins("Project").
+		InnerJoins("Deliverable").
+		Joins("AssignedUser").
+		Joins("Creator").
+		Where("dmms_tasks.id = ?", id).Scan(&t).Error
 	if err != nil {
 		return nil, err
 	}
@@ -60,52 +60,52 @@ func (r *TaskRepo) Get(id string) (*models.Task, error) {
 
 func (r *TaskRepo) ListByDeliverable(deliverableID string) ([]*models.Task, error) {
 	var out []*models.Task
-	err := r.db.Table("dmms_tasks t").
-		Select("t.*, COALESCE(p.name,'') as project_name, COALESCE(d.title,'') as deliverable_title, COALESCE(u.name,'') as assigned_to_name, COALESCE(cu.name,'') as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=t.id) as comment_count").
-		Joins("LEFT JOIN dmms_projects p ON p.id=t.project_id").
-		Joins("LEFT JOIN dmms_deliverables d ON d.id=t.deliverable_id").
-		Joins("LEFT JOIN dmms_users u ON u.id=t.assigned_to").
-		Joins("LEFT JOIN dmms_users cu ON cu.id=t.created_by").
-		Where("t.deliverable_id = ?", deliverableID).
-		Order("t.position").Scan(&out).Error
+	err := r.db.Model(&models.Task{}).
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		InnerJoins("Project").
+		InnerJoins("Deliverable").
+		Joins("AssignedUser").
+		Joins("Creator").
+		Where("dmms_tasks.deliverable_id = ?", deliverableID).
+		Order("dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
 func (r *TaskRepo) ListByProject(projectID string) ([]*models.Task, error) {
 	var out []*models.Task
-	err := r.db.Table("dmms_tasks t").
-		Select("t.*, COALESCE(p.name,'') as project_name, COALESCE(d.title,'') as deliverable_title, COALESCE(u.name,'') as assigned_to_name, COALESCE(cu.name,'') as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=t.id) as comment_count").
-		Joins("LEFT JOIN dmms_projects p ON p.id=t.project_id").
-		Joins("LEFT JOIN dmms_deliverables d ON d.id=t.deliverable_id").
-		Joins("LEFT JOIN dmms_users u ON u.id=t.assigned_to").
-		Joins("LEFT JOIN dmms_users cu ON cu.id=t.created_by").
-		Where("t.project_id = ?", projectID).
-		Order("t.status, t.position").Scan(&out).Error
+	err := r.db.Model(&models.Task{}).
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		InnerJoins("Project").
+		InnerJoins("Deliverable").
+		Joins("AssignedUser").
+		Joins("Creator").
+		Where("dmms_tasks.project_id = ?", projectID).
+		Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
 func (r *TaskRepo) ListAll() ([]*models.Task, error) {
 	var out []*models.Task
-	err := r.db.Table("dmms_tasks t").
-		Select("t.*, COALESCE(p.name,'') as project_name, COALESCE(d.title,'') as deliverable_title, COALESCE(u.name,'') as assigned_to_name, COALESCE(cu.name,'') as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=t.id) as comment_count").
-		Joins("LEFT JOIN dmms_projects p ON p.id=t.project_id").
-		Joins("LEFT JOIN dmms_deliverables d ON d.id=t.deliverable_id").
-		Joins("LEFT JOIN dmms_users u ON u.id=t.assigned_to").
-		Joins("LEFT JOIN dmms_users cu ON cu.id=t.created_by").
-		Order("t.status, t.position").Scan(&out).Error
+	err := r.db.Model(&models.Task{}).
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		InnerJoins("Project").
+		InnerJoins("Deliverable").
+		Joins("AssignedUser").
+		Joins("Creator").
+		Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
 func (r *TaskRepo) ListForContributor(userID string) ([]*models.Task, error) {
 	var out []*models.Task
-	err := r.db.Table("dmms_tasks t").
-		Select("t.*, COALESCE(p.name,'') as project_name, COALESCE(d.title,'') as deliverable_title, COALESCE(u.name,'') as assigned_to_name, COALESCE(cu.name,'') as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=t.id) as comment_count").
-		Joins("LEFT JOIN dmms_projects p ON p.id=t.project_id").
-		Joins("LEFT JOIN dmms_deliverables d ON d.id=t.deliverable_id").
-		Joins("LEFT JOIN dmms_users u ON u.id=t.assigned_to").
-		Joins("LEFT JOIN dmms_users cu ON cu.id=t.created_by").
-		Where("t.assigned_to = ? OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id=t.deliverable_id AND dd.owner_id=?)", userID, userID).
-		Order("t.status, t.project_id, t.position").Scan(&out).Error
+	err := r.db.Model(&models.Task{}).
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		InnerJoins("Project").
+		InnerJoins("Deliverable").
+		Joins("AssignedUser").
+		Joins("Creator").
+		Where("dmms_tasks.assigned_to = ? OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id=dmms_tasks.deliverable_id AND dd.owner_id=? AND dd.deleted_at IS NULL)", userID, userID).
+		Order("dmms_tasks.status, dmms_tasks.project_id, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 

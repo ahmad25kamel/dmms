@@ -52,9 +52,9 @@ func (r *DeliverableRepo) ListByOwner(ownerID string) ([]*models.Deliverable, er
 
 func (r *DeliverableRepo) ListOpenBids(visibility models.Visibility) ([]*models.Deliverable, error) {
 	var out []*models.Deliverable
-	query := r.db.Table("dmms_deliverables").
-		Select("dmms_deliverables.*, dmms_projects.name as project_name").
-		Joins("left join dmms_projects on dmms_projects.id = dmms_deliverables.project_id").
+	query := r.db.Model(&models.Deliverable{}).
+		Select("dmms_deliverables.*, Project.name as project_name").
+		InnerJoins("Project").
 		Where("dmms_deliverables.status = ?", "open_for_bids")
 
 	if visibility == models.VisibilityPublic {

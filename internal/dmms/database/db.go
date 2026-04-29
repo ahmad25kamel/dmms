@@ -14,7 +14,8 @@ import (
 func Open(cfg *config.Config) (*gorm.DB, error) {
 	dsn := cfg.GetMySQLDSN()
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger:                                   logger.Default.LogMode(logger.Info),
+		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("open gorm db: %w", err)

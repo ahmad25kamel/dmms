@@ -91,7 +91,8 @@ type Deliverable struct {
 	CreatedAt          time.Time         `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 	UpdatedAt          time.Time         `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
 	Children           []*Deliverable    `json:"children,omitempty" gorm:"foreignKey:ParentID"`
-	ProjectName        string            `json:"project_name,omitempty" gorm:"-"`
+	ProjectName        string            `json:"project_name,omitempty" gorm:"->"`
+	Project            *Project          `json:"-" gorm:"foreignKey:ProjectID"`
 	DeletedAt          gorm.DeletedAt    `json:"deleted_at" gorm:"index"`
 }
 
@@ -126,6 +127,12 @@ type Task struct {
 	AssignedToName   string `json:"assigned_to_name,omitempty" gorm:"->"`
 	CreatedByName    string `json:"created_by_name,omitempty" gorm:"->"`
 	CommentCount     int    `json:"comment_count,omitempty" gorm:"->"`
+	
+	// Associations
+	Project      *Project     `json:"-" gorm:"foreignKey:ProjectID"`
+	Deliverable  *Deliverable `json:"-" gorm:"foreignKey:DeliverableID"`
+	AssignedUser *User        `json:"-" gorm:"foreignKey:AssignedTo"`
+	Creator      *User        `json:"-" gorm:"foreignKey:CreatedBy"`
 }
 
 func (Task) TableName() string { return "dmms_tasks" }

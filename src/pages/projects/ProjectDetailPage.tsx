@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { projectsApi, deliverablesApi } from '../../api';
 import type { Project, Deliverable } from '../../types';
-import { Badge, Button, KpiCard, Spinner, ProgressBar, Alert } from '../../components/ui';
+import { Badge, Button, KpiCard, Spinner, ProgressBar, Alert, Modal, Input, Textarea, FormField } from '../../components/ui';
 import { formatCurrency, formatDate, projectStatusColor } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
 
@@ -13,9 +13,44 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Project>>({});
+  const [editSaving, setEditSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const handleEditOpen = () => {
+    if (!project) return;
+    setEditForm({
+      name: project.name,
+      description: project.description,
+      budget_total: project.budget_total,
+      start_date: project.start_date ? project.start_date.split('T')[0] : '',
+      end_date: project.end_date ? project.end_date.split('T')[0] : ''
+    });
+    setIsEditing(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!projectId) return;
+    setEditSaving(true);
+    try {
+      await projectsApi.update(projectId, {
+        name: editForm.name,
+        description: editForm.description,
+        budget_total: Number(editForm.budget_total),
+        start_date: editForm.start_date ? new Date(editForm.start_date).toISOString() : undefined,
+        end_date: editForm.end_date ? new Date(editForm.end_date).toISOString() : undefined,
+      });
+      setIsEditing(false);
+      loadData();
+    } catch (err) {
+      setError('Failed to update project');
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const loadData = () => {
     if (!projectId) return;
@@ -26,7 +61,17 @@ export function ProjectDetailPage() {
     ])
     .then(([p, t]) => {
       setProject(p);
-      setTree(t);
+      const sortTree = (nodes: Deliverable[]): Deliverable[] => {
+        return nodes.map(n => ({
+          ...n,
+          children: n.children ? sortTree(n.children) : []
+        })).sort((a, b) => {
+          const d1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
+          const d2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
+          return d1 - d2;
+        });
+      };
+      setTree(sortTree(t));
     })
     .finally(() => setLoading(false));
   };
@@ -102,6 +147,7 @@ export function ProjectDetailPage() {
               <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
                 {importing ? 'Importing...' : 'Import JSON'}
               </Button>
+              <Button variant="secondary" onClick={handleEditOpen}>Edit Project</Button>
               <Button variant="ghost" onClick={handleDownloadTemplate}>Template</Button>
               <Button variant="danger" onClick={handleDeleteProject}>Delete Project</Button>
             </>
@@ -158,6 +204,63 @@ export function ProjectDetailPage() {
           <GanttChart tree={tree} />
         )}
       </div>
+
+      {isEditing && project && (
+        <Modal
+          title="Edit Project"
+          onClose={() => setIsEditing(false)}
+          footer={
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+              <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+              <Button onClick={handleEditSave} disabled={editSaving}>
+                {editSaving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <FormField label="Project Name">
+              <Input
+                value={editForm.name || ''}
+                onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Name"
+              />
+            </FormField>
+            <FormField label="Description">
+              <Textarea
+                value={editForm.description || ''}
+                onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Description"
+                rows={3}
+              />
+            </FormField>
+            <FormField label="Total Budget">
+              <Input
+                type="number"
+                value={editForm.budget_total || ''}
+                onChange={e => setEditForm(prev => ({ ...prev, budget_total: Number(e.target.value) }))}
+                placeholder="0"
+              />
+            </FormField>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <FormField label="Start Date">
+                <Input
+                  type="date"
+                  value={editForm.start_date || ''}
+                  onChange={e => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                />
+              </FormField>
+              <FormField label="End Date">
+                <Input
+                  type="date"
+                  value={editForm.end_date || ''}
+                  onChange={e => setEditForm(prev => ({ ...prev, end_date: e.target.value }))}
+                />
+              </FormField>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -201,13 +304,27 @@ function GanttChart({ tree }: { tree: Deliverable[] }) {
   
   const duration = chartEnd - chartStart;
 
+  const weeks = [];
+  for (let t = chartStart; t <= chartEnd; t += paddingMs) {
+    weeks.push(t);
+  }
+
   return (
     <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-lg)', overflowX: 'auto', padding: '16px 0' }}>
-      <div style={{ minWidth: 800, padding: '0 20px' }}>
+      <div style={{ minWidth: 1200, padding: '0 20px' }}>
         {/* Header dates (rough ticks) */}
         <div style={{ display: 'flex', position: 'relative', height: 24, borderBottom: '1px solid var(--border-1)', marginBottom: 12 }}>
-          <span className="meta" style={{ position: 'absolute', left: '30%' }}>{new Date(chartStart).toLocaleDateString()}</span>
-          <span className="meta" style={{ position: 'absolute', right: 0 }}>{new Date(chartEnd).toLocaleDateString()}</span>
+          <div style={{ width: '30%', minWidth: 250, position: 'sticky', left: 0, background: 'var(--bg-1)', zIndex: 10 }} />
+          <div style={{ flexGrow: 1, position: 'relative' }}>
+            {weeks.map((w, i) => {
+              const leftPct = ((w - chartStart) / duration) * 100;
+              return (
+                <div key={i} style={{ position: 'absolute', left: `${leftPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border-1)' }} />
+              );
+            })}
+            <span className="meta" style={{ position: 'absolute', left: 0, background: 'var(--bg-1)', paddingRight: 4 }}>{new Date(chartStart).toLocaleDateString()}</span>
+            <span className="meta" style={{ position: 'absolute', right: 0, background: 'var(--bg-1)', paddingLeft: 4 }}>{new Date(chartEnd).toLocaleDateString()}</span>
+          </div>
         </div>
 
         {/* Rows */}
@@ -234,7 +351,7 @@ function GanttChart({ tree }: { tree: Deliverable[] }) {
             return (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', position: 'relative', height: 32 }}>
                 {/* Title */}
-                <div style={{ width: '30%', flexShrink: 0, paddingLeft: depth * 16, display: 'flex', alignItems: 'center', gap: 8, zIndex: 2, background: 'var(--bg-1)' }}>
+                <div style={{ width: '30%', minWidth: 250, flexShrink: 0, paddingLeft: depth * 16, display: 'flex', alignItems: 'center', gap: 8, zIndex: 10, background: 'var(--bg-1)', position: 'sticky', left: 0 }}>
                   <Badge color={projectStatusColor[d.status] || 'gray'}>{d.status.replace(/_/g, ' ')}</Badge>
                   <span style={{ fontSize: 13, fontWeight: depth === 0 ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {d.title}
@@ -242,7 +359,13 @@ function GanttChart({ tree }: { tree: Deliverable[] }) {
                 </div>
 
                 {/* Bar area */}
-                <div style={{ width: '70%', flexGrow: 1, position: 'relative', height: '100%', background: 'var(--bg-2)', borderRadius: 4 }}>
+                <div style={{ flexGrow: 1, position: 'relative', height: '100%', background: 'transparent', borderRadius: 4 }}>
+                  {weeks.map((w, i) => {
+                    const leftPct = ((w - chartStart) / duration) * 100;
+                    return (
+                      <div key={i} style={{ position: 'absolute', left: `${leftPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border-1)', zIndex: 0 }} />
+                    );
+                  })}
                   {(hasStart || hasEnd) && (
                     <div
                       style={{
@@ -254,7 +377,8 @@ function GanttChart({ tree }: { tree: Deliverable[] }) {
                         transform: 'translateY(-50%)',
                         background: isMilestone ? 'var(--amber)' : 'var(--kamel-blue)',
                         borderRadius: isMilestone ? '50%' : 4,
-                        boxShadow: 'var(--shadow-1)'
+                        boxShadow: 'var(--shadow-1)',
+                        zIndex: 2
                       }}
                       title={`${d.title}\nStart: ${d.start_date ? formatDate(d.start_date) : '?'}\nEnd: ${d.due_date ? formatDate(d.due_date) : '?'}`}
                     />
