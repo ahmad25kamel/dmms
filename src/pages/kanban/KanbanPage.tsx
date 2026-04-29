@@ -27,6 +27,7 @@ function PMKanban() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterProject, setFilterProject] = useState('');
+  const [filterDeliverable, setFilterDeliverable] = useState('');
   const [filterContributor, setFilterContributor] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<KanbanTask | null>(null);
@@ -34,9 +35,10 @@ function PMKanban() {
   const reload = useCallback(() => {
     const params: Record<string, string> = {};
     if (filterProject) params.project_id = filterProject;
+    if (filterDeliverable) params.deliverable_id = filterDeliverable;
     if (filterContributor) params.assigned_to = filterContributor;
     kanbanApi.list(params).then(setTasks).finally(() => setLoading(false));
-  }, [filterProject, filterContributor]);
+  }, [filterProject, filterDeliverable, filterContributor]);
 
   useEffect(() => {
     projectsApi.list().then(setProjects);
@@ -63,9 +65,26 @@ function PMKanban() {
   }
 
   // Unique contributors from tasks
-  const contributors = Array.from(
-    new Map(tasks.filter(t => t.assigned_to).map(t => [t.assigned_to, t.assigned_to_name])).entries()
-  ).map(([id, name]) => ({ id: id!, name: name ?? id! }));
+  const contributorsMap = new Map<string, string>();
+  tasks.forEach(t => {
+    if (t.assigned_to) {
+      if (t.assigned_to_name || !contributorsMap.has(t.assigned_to)) {
+        contributorsMap.set(t.assigned_to, t.assigned_to_name || t.assigned_to);
+      }
+    }
+  });
+  const contributors = Array.from(contributorsMap.entries()).map(([id, name]) => ({ id, name }));
+
+  // Unique deliverables from tasks
+  const deliverablesMap = new Map<string, string>();
+  tasks.forEach(t => {
+    if (t.deliverable_id) {
+      if (t.deliverable_title || !deliverablesMap.has(t.deliverable_id)) {
+        deliverablesMap.set(t.deliverable_id, t.deliverable_title || t.deliverable_id);
+      }
+    }
+  });
+  const deliverables = Array.from(deliverablesMap.entries()).map(([id, title]) => ({ id, title }));
 
   return (
     <div className="dmms-page">
@@ -86,12 +105,16 @@ function PMKanban() {
           <option value="">All Projects</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
+        <Select value={filterDeliverable} onChange={e => setFilterDeliverable(e.target.value)} style={{ width: 200 }}>
+          <option value="">All Deliverables</option>
+          {deliverables.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+        </Select>
         <Select value={filterContributor} onChange={e => setFilterContributor(e.target.value)} style={{ width: 200 }}>
           <option value="">All Contributors</option>
           {contributors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
-        {(filterProject || filterContributor) && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterProject(''); setFilterContributor(''); }}>Clear filters</Button>
+        {(filterProject || filterDeliverable || filterContributor) && (
+          <Button variant="ghost" size="sm" onClick={() => { setFilterProject(''); setFilterDeliverable(''); setFilterContributor(''); }}>Clear filters</Button>
         )}
       </div>
 

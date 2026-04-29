@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"time"
+	"gorm.io/gorm"
+)
 
 type Role string
 
@@ -43,6 +46,7 @@ type Project struct {
 	Status           ProjectStatus `json:"status" gorm:"not null;default:'draft'"`
 	CreatedAt        time.Time     `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 	UpdatedAt        time.Time     `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
+	DeletedAt        gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 }
 
 func (Project) TableName() string { return "dmms_projects" }
@@ -88,6 +92,7 @@ type Deliverable struct {
 	UpdatedAt          time.Time         `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
 	Children           []*Deliverable    `json:"children,omitempty" gorm:"foreignKey:ParentID"`
 	ProjectName        string            `json:"project_name,omitempty" gorm:"-"`
+	DeletedAt          gorm.DeletedAt    `json:"deleted_at" gorm:"index"`
 }
 
 func (Deliverable) TableName() string { return "dmms_deliverables" }
@@ -116,11 +121,11 @@ type Task struct {
 	CreatedAt      time.Time    `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 	UpdatedAt      time.Time    `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
 	// Enriched fields
-	ProjectName      string `json:"project_name,omitempty" gorm:"-"`
-	DeliverableTitle string `json:"deliverable_title,omitempty" gorm:"-"`
-	AssignedToName   string `json:"assigned_to_name,omitempty" gorm:"-"`
-	CreatedByName    string `json:"created_by_name,omitempty" gorm:"-"`
-	CommentCount     int    `json:"comment_count,omitempty" gorm:"-"`
+	ProjectName      string `json:"project_name,omitempty" gorm:"->"`
+	DeliverableTitle string `json:"deliverable_title,omitempty" gorm:"->"`
+	AssignedToName   string `json:"assigned_to_name,omitempty" gorm:"->"`
+	CreatedByName    string `json:"created_by_name,omitempty" gorm:"->"`
+	CommentCount     int    `json:"comment_count,omitempty" gorm:"->"`
 }
 
 func (Task) TableName() string { return "dmms_tasks" }
@@ -132,7 +137,7 @@ type TaskComment struct {
 	ID         string    `json:"id" gorm:"primaryKey;size:191"`
 	TaskID     string    `json:"task_id" gorm:"column:task_id;not null;size:191"`
 	AuthorID   string    `json:"author_id" gorm:"column:author_id;not null;size:191"`
-	AuthorName string    `json:"author_name,omitempty" gorm:"-"`
+	AuthorName string    `json:"author_name,omitempty" gorm:"->"`
 	Body       string    `json:"body" gorm:"not null"`
 	CreatedAt  time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 }
@@ -187,7 +192,7 @@ type Proposal struct {
 	Message         string         `json:"message"`
 	Status          ProposalStatus `json:"status" gorm:"not null;default:'pending'"`
 	CreatedAt       time.Time      `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
-	ContributorName string         `json:"contributor_name,omitempty" gorm:"-"`
+	ContributorName string         `json:"contributor_name,omitempty" gorm:"->"`
 }
 
 func (Proposal) TableName() string { return "dmms_proposals" }
@@ -200,9 +205,9 @@ type RewardLedgerEntry struct {
 	Amount           float64   `json:"amount" gorm:"not null"`
 	ApprovedBy       string    `json:"approved_by" gorm:"column:approved_by;not null;size:191"`
 	CreatedAt        time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
-	UserName         string    `json:"user_name,omitempty" gorm:"-"`
-	DeliverableTitle string    `json:"deliverable_title,omitempty" gorm:"-"`
-	ProjectName      string    `json:"project_name,omitempty" gorm:"-"`
+	UserName         string    `json:"user_name,omitempty" gorm:"->"`
+	DeliverableTitle string    `json:"deliverable_title,omitempty" gorm:"->"`
+	ProjectName      string    `json:"project_name,omitempty" gorm:"->"`
 }
 
 func (RewardLedgerEntry) TableName() string { return "dmms_reward_ledger" }

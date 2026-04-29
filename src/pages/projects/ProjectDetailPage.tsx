@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { projectsApi, deliverablesApi } from '../../api';
 import type { Project, Deliverable } from '../../types';
 import { Badge, Button, KpiCard, Spinner, ProgressBar, Alert } from '../../components/ui';
@@ -15,6 +15,7 @@ export function ProjectDetailPage() {
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const loadData = () => {
     if (!projectId) return;
@@ -68,6 +69,17 @@ export function ProjectDetailPage() {
     }
   };
 
+  const handleDeleteProject = async () => {
+    if (!projectId) return;
+    if (!confirm('Are you sure you want to delete this project?')) return;
+    try {
+      await projectsApi.delete(projectId);
+      navigate('/projects');
+    } catch (err) {
+      setError('Failed to delete project');
+    }
+  };
+
   if (loading) return <Spinner />;
   if (!project) return <div className="dmms-page"><p className="body-sm">Project not found.</p></div>;
 
@@ -91,6 +103,7 @@ export function ProjectDetailPage() {
                 {importing ? 'Importing...' : 'Import JSON'}
               </Button>
               <Button variant="ghost" onClick={handleDownloadTemplate}>Template</Button>
+              <Button variant="danger" onClick={handleDeleteProject}>Delete Project</Button>
             </>
           )}
           <Link to={`/projects/${project.id}/tree`}>
