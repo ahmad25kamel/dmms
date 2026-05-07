@@ -74,6 +74,7 @@ export interface Task {
   position: number;
   created_at: string;
   updated_at: string;
+  file_uploads?: string;
   // Enriched fields
   project_name?: string;
   deliverable_title?: string;
@@ -146,6 +147,7 @@ export interface TaskComment {
   author_id: string;
   author_name?: string;
   body: string;
+  file_uploads?: string;
   created_at: string;
 }
 

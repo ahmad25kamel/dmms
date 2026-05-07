@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { kanbanApi, projectsApi } from '../../api';
-import type { KanbanTask, KanbanComment, Project } from '../../types';
-import { Button, Modal, FormField, Input, Textarea, Select, Spinner, EmptyState, Alert } from '../../components/ui';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { kanbanApi, projectsApi, usersApi } from '../../api';
+import type { KanbanTask, KanbanComment, Project, User } from '../../types';
+import { Button, Modal, FormField, Input, Select, Spinner, Alert, MentionsTextarea } from '../../components/ui';
 import { formatDate } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
 
@@ -23,72 +23,63 @@ export function KanbanPage() {
 // ── PM View ──────────────────────────────────────────────────────────────────
 
 function PMKanban() {
-  const [tasks, setTasks] = useState<KanbanTask[]>([]);
+  const [tasksMap, setTasksMap] = useState<Record<KanbanStatus, KanbanTask[]>>({
+    backlog: [], todo: [], in_progress: [], done: []
+  });
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<User[]>([]);
   const [filterProject, setFilterProject] = useState('');
   const [filterDeliverable, setFilterDeliverable] = useState('');
   const [filterContributor, setFilterContributor] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<KanbanTask | null>(null);
 
-  const reload = useCallback(() => {
-    const params: Record<string, string> = {};
+  useEffect(() => {
+    projectsApi.list().then(setProjects);
+    usersApi.list().then(setUsers);
+  }, []);
+
+  const loadMore = useCallback(async (status: KanbanStatus, offset: number) => {
+    const params: any = { status, limit: 20, offset };
     if (filterProject) params.project_id = filterProject;
     if (filterDeliverable) params.deliverable_id = filterDeliverable;
     if (filterContributor) params.assigned_to = filterContributor;
-    kanbanApi.list(params).then(setTasks).finally(() => setLoading(false));
+    
+    const newTasks = await kanbanApi.list(params);
+    setTasksMap(prev => ({
+      ...prev,
+      [status]: offset === 0 ? newTasks : [...prev[status], ...newTasks]
+    }));
+    return newTasks.length;
   }, [filterProject, filterDeliverable, filterContributor]);
 
   useEffect(() => {
-    projectsApi.list().then(setProjects);
-  }, []);
+    COLUMNS.forEach(col => loadMore(col.key, 0));
+  }, [loadMore]);
 
-  useEffect(() => {
-    setLoading(true);
-    reload();
-  }, [reload]);
-
-  async function moveTask(taskId: string, destStatus: KanbanStatus, dropIndex: number) {
-    const task = tasks.find(t => t.id === taskId);
+  async function moveTask(taskId: string, sourceStatus: KanbanStatus, destStatus: KanbanStatus, dropIndex: number) {
+    const task = tasksMap[sourceStatus].find(t => t.id === taskId);
     if (!task) return;
-    let updatedTasks = [...tasks].filter(t => t.id !== taskId);
-    const colTasks = updatedTasks.filter(t => t.status === destStatus).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    const newTask = { ...task, status: destStatus };
-    colTasks.splice(dropIndex, 0, newTask);
-    colTasks.forEach((t, i) => { t.position = i; });
-    setTasks(ts => {
-      const remaining = ts.filter(t => t.status !== destStatus && t.id !== taskId);
-      return [...remaining, ...colTasks];
+
+    // Local update
+    let updatedDestTasks: KanbanTask[] = [];
+    setTasksMap(prev => {
+      const newMap = { ...prev };
+      newMap[sourceStatus] = newMap[sourceStatus].filter(t => t.id !== taskId);
+      const updatedTask = { ...task, status: destStatus };
+      updatedDestTasks = [...newMap[destStatus]];
+      updatedDestTasks.splice(dropIndex, 0, updatedTask);
+      updatedDestTasks.forEach((t, i) => { t.position = i; });
+      newMap[destStatus] = updatedDestTasks;
+      return newMap;
     });
-    await kanbanApi.reorder(colTasks.map(t => ({ id: t.id, status: destStatus, position: t.position })));
+
+    await kanbanApi.reorder(updatedDestTasks.map(t => ({ id: t.id, status: destStatus, position: t.position })));
   }
 
-  // Unique contributors from tasks
-  const contributorsMap = new Map<string, string>();
-  tasks.forEach(t => {
-    if (t.assigned_to) {
-      if (t.assigned_to_name || !contributorsMap.has(t.assigned_to)) {
-        contributorsMap.set(t.assigned_to, t.assigned_to_name || t.assigned_to);
-      }
-    }
-  });
-  const contributors = Array.from(contributorsMap.entries()).map(([id, name]) => ({ id, name }));
-
-  // Unique deliverables from tasks
-  const deliverablesMap = new Map<string, string>();
-  tasks.forEach(t => {
-    if (t.deliverable_id) {
-      if (t.deliverable_title || !deliverablesMap.has(t.deliverable_id)) {
-        deliverablesMap.set(t.deliverable_id, t.deliverable_title || t.deliverable_id);
-      }
-    }
-  });
-  const deliverables = Array.from(deliverablesMap.entries()).map(([id, title]) => ({ id, title }));
-
   return (
-    <div className="dmms-page">
-      <div className="dmms-page-head">
+    <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
+      <div className="dmms-page-head" style={{ flexShrink: 0 }}>
         <div>
           <h1>Kanban Board</h1>
           <p className="dmms-page-sub">Monitor all task progress across projects</p>
@@ -99,43 +90,65 @@ function PMKanban() {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, flexShrink: 0 }}>
         <Select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ width: 200 }}>
           <option value="">All Projects</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
-        <Select value={filterDeliverable} onChange={e => setFilterDeliverable(e.target.value)} style={{ width: 200 }}>
-          <option value="">All Deliverables</option>
-          {deliverables.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
-        </Select>
         <Select value={filterContributor} onChange={e => setFilterContributor(e.target.value)} style={{ width: 200 }}>
           <option value="">All Contributors</option>
-          {contributors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
         </Select>
         {(filterProject || filterDeliverable || filterContributor) && (
           <Button variant="ghost" size="sm" onClick={() => { setFilterProject(''); setFilterDeliverable(''); setFilterContributor(''); }}>Clear filters</Button>
         )}
       </div>
 
-      {loading ? <Spinner /> : (
-        <KanbanBoard tasks={tasks} onMove={moveTask} onSelect={setSelected} />
-      )}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <KanbanBoard tasksMap={tasksMap} onMove={moveTask} onSelect={setSelected} onLoadMore={loadMore} />
+      </div>
 
       {showCreate && (
         <CreateTaskModal
           projects={projects}
+          users={users}
           onClose={() => setShowCreate(false)}
-          onCreate={(t) => { setTasks(ts => [...ts, t]); setShowCreate(false); }}
+          onCreate={(t) => {
+            setTasksMap(prev => ({ ...prev, [t.status]: [t, ...prev[t.status]] }));
+            setShowCreate(false);
+          }}
         />
       )}
 
       {selected && (
         <TaskDetailModal
           task={selected}
+          users={users}
           onClose={() => setSelected(null)}
-          onUpdated={(t) => setTasks(ts => ts.map(x => x.id === t.id ? t : x))}
-          onDeleted={(id) => { setTasks(ts => ts.filter(t => t.id !== id)); setSelected(null); }}
+          onUpdated={(updated) => {
+             // If status changed, we need to move it in the map
+             setTasksMap(prev => {
+                const newMap = { ...prev };
+                const oldStatus = selected.status;
+                const newStatus = updated.status;
+                if (oldStatus !== newStatus) {
+                  newMap[oldStatus] = newMap[oldStatus].filter(x => x.id !== updated.id);
+                  newMap[newStatus] = [updated, ...newMap[newStatus]];
+                } else {
+                  newMap[oldStatus] = newMap[oldStatus].map(x => x.id === updated.id ? updated : x);
+                }
+                return newMap;
+             });
+             setSelected(updated);
+          }}
+          onDeleted={(id) => {
+            setTasksMap(prev => {
+              const newMap = { ...prev };
+              newMap[selected.status] = newMap[selected.status].filter(t => t.id !== id);
+              return newMap;
+            });
+            setSelected(null);
+          }}
         />
       )}
     </div>
@@ -146,40 +159,55 @@ function PMKanban() {
 
 function ContributorKanban() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState<KanbanTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [selected, setSelected] = useState<KanbanTask | null>(null);
+  const [tasksMap, setTasksMap] = useState<Record<KanbanStatus, KanbanTask[]>>({
+    backlog: [], todo: [], in_progress: [], done: []
+  });
+  const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-
-  const reload = useCallback(() => {
-    kanbanApi.mine().then(setTasks).finally(() => setLoading(false));
-  }, []);
+  const [selected, setSelected] = useState<KanbanTask | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     projectsApi.list().then(setProjects);
-    reload();
-  }, [reload]);
+    usersApi.list().then(setUsers);
+  }, []);
 
-  async function moveTask(taskId: string, destStatus: KanbanStatus, dropIndex: number) {
-    const task = tasks.find(t => t.id === taskId);
+  const loadMore = useCallback(async (status: KanbanStatus, offset: number) => {
+    const newTasks = await kanbanApi.mine({ status, limit: 20, offset });
+    setTasksMap(prev => ({
+      ...prev,
+      [status]: offset === 0 ? newTasks : [...prev[status], ...newTasks]
+    }));
+    return newTasks.length;
+  }, []);
+
+  useEffect(() => {
+    COLUMNS.forEach(col => loadMore(col.key, 0));
+  }, [loadMore]);
+
+  async function moveTask(taskId: string, sourceStatus: KanbanStatus, destStatus: KanbanStatus, dropIndex: number) {
+    const task = tasksMap[sourceStatus].find(t => t.id === taskId);
     if (!task) return;
-    let updatedTasks = [...tasks].filter(t => t.id !== taskId);
-    const colTasks = updatedTasks.filter(t => t.status === destStatus).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    const newTask = { ...task, status: destStatus };
-    colTasks.splice(dropIndex, 0, newTask);
-    colTasks.forEach((t, i) => { t.position = i; });
-    setTasks(ts => {
-      const remaining = ts.filter(t => t.status !== destStatus && t.id !== taskId);
-      return [...remaining, ...colTasks];
+
+    let updatedDestTasks: KanbanTask[] = [];
+    setTasksMap(prev => {
+      const newMap = { ...prev };
+      newMap[sourceStatus] = newMap[sourceStatus].filter(t => t.id !== taskId);
+      const updatedTask = { ...task, status: destStatus };
+      updatedDestTasks = [...newMap[destStatus]];
+      updatedDestTasks.splice(dropIndex, 0, updatedTask);
+      updatedDestTasks.forEach((t, i) => { t.position = i; });
+      newMap[destStatus] = updatedDestTasks;
+      return newMap;
     });
-    await kanbanApi.reorder(colTasks.map(t => ({ id: t.id, status: destStatus, position: t.position })));
+
+    await kanbanApi.reorder(updatedDestTasks.map(t => ({ id: t.id, status: destStatus, position: t.position })));
   }
 
   if (!user) return null;
 
   return (
-    <div className="dmms-page">
+    <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
       <div className="dmms-page-head">
         <div>
           <h1>My Task Board</h1>
@@ -191,31 +219,51 @@ function ContributorKanban() {
         </Button>
       </div>
 
-      {loading ? <Spinner /> : tasks.length === 0 ? (
-        <EmptyState
-          title="No tasks yet"
-          description="Add tasks to track your daily work across deliverables."
-          action={<Button onClick={() => setShowCreate(true)}>Add Task</Button>}
-        />
-      ) : (
-        <KanbanBoard tasks={tasks} onMove={moveTask} onSelect={setSelected} />
-      )}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <KanbanBoard tasksMap={tasksMap} onMove={moveTask} onSelect={setSelected} onLoadMore={loadMore} />
+      </div>
 
       {showCreate && (
         <CreateTaskModal
           projects={projects}
           assignedTo={user.id}
+          users={users}
           onClose={() => setShowCreate(false)}
-          onCreate={(t) => { setTasks(ts => [...ts, t]); setShowCreate(false); }}
+          onCreate={(t) => {
+            setTasksMap(prev => ({ ...prev, [t.status]: [t, ...prev[t.status]] }));
+            setShowCreate(false);
+          }}
         />
       )}
 
       {selected && (
         <TaskDetailModal
           task={selected}
+          users={users}
           onClose={() => setSelected(null)}
-          onUpdated={(t) => setTasks(ts => ts.map(x => x.id === t.id ? t : x))}
-          onDeleted={(id) => { setTasks(ts => ts.filter(t => t.id !== id)); setSelected(null); }}
+          onUpdated={(updated) => {
+             setTasksMap(prev => {
+                const newMap = { ...prev };
+                const oldStatus = selected.status;
+                const newStatus = updated.status;
+                if (oldStatus !== newStatus) {
+                  newMap[oldStatus] = newMap[oldStatus].filter(x => x.id !== updated.id);
+                  newMap[newStatus] = [updated, ...newMap[newStatus]];
+                } else {
+                  newMap[oldStatus] = newMap[oldStatus].map(x => x.id === updated.id ? updated : x);
+                }
+                return newMap;
+             });
+             setSelected(updated);
+          }}
+          onDeleted={(id) => {
+            setTasksMap(prev => {
+              const newMap = { ...prev };
+              newMap[selected.status] = newMap[selected.status].filter(t => t.id !== id);
+              return newMap;
+            });
+            setSelected(null);
+          }}
         />
       )}
     </div>
@@ -224,88 +272,114 @@ function ContributorKanban() {
 
 // ── Kanban Board ──────────────────────────────────────────────────────────────
 
-function KanbanBoard({ tasks, onMove, onSelect }: {
-  tasks: KanbanTask[];
-  onMove: (id: string, status: KanbanStatus, index: number) => void;
+function KanbanBoard({ tasksMap, onMove, onSelect, onLoadMore }: {
+  tasksMap: Record<KanbanStatus, KanbanTask[]>;
+  onMove: (id: string, source: KanbanStatus, dest: KanbanStatus, index: number) => void;
   onSelect: (t: KanbanTask) => void;
+  onLoadMore: (status: KanbanStatus, offset: number) => Promise<number>;
 }) {
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, height: '100%', alignItems: 'stretch' }}>
+      {COLUMNS.map(col => (
+        <KanbanColumn
+          key={col.key}
+          status={col.key}
+          label={col.label}
+          color={col.color}
+          tasks={tasksMap[col.key]}
+          onMove={onMove}
+          onSelect={onSelect}
+          onLoadMore={onLoadMore}
+        />
+      ))}
+    </div>
+  );
+}
 
-  const handleDragOver = (e: React.DragEvent, status: KanbanStatus, index: number) => {
+function KanbanColumn({ status, label, color, tasks, onMove, onSelect, onLoadMore }: {
+  status: KanbanStatus;
+  label: string;
+  color: string;
+  tasks: KanbanTask[];
+  onMove: (id: string, source: KanbanStatus, dest: KanbanStatus, index: number) => void;
+  onSelect: (t: KanbanTask) => void;
+  onLoadMore: (status: KanbanStatus, offset: number) => Promise<number>;
+}) {
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    setDragOverCol(status);
     setDragOverIndex(index);
   };
 
-  const handleDrop = (e: React.DragEvent, status: KanbanStatus, index: number) => {
+  const handleDrop = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverCol(null);
     setDragOverIndex(null);
     const id = e.dataTransfer.getData('taskId');
-    if (id) onMove(id, status, index);
+    const sourceStatus = e.dataTransfer.getData('sourceStatus') as KanbanStatus;
+    if (id) onMove(id, sourceStatus, status, index);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOverCol(null);
-    setDragOverIndex(null);
+  const handleScroll = async (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop <= el.clientHeight + 50 && !loading && hasMore) {
+      setLoading(true);
+      const count = await onLoadMore(status, tasks.length);
+      setHasMore(count === 20);
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'start' }}>
-      {COLUMNS.map(col => {
-        const colTasks = tasks.filter(t => t.status === col.key).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-        return (
-          <div
-            key={col.key}
-            style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', minHeight: 400 }}
-            onDragOver={(e) => handleDragOver(e, col.key, colTasks.length)}
-            onDrop={(e) => handleDrop(e, col.key, colTasks.length)}
-            onDragLeave={handleDragLeave}
-          >
-            {/* Column header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 2px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: col.color, flexShrink: 0 }} />
-              <span style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-3)' }}>{col.label}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--fg-4)', fontWeight: 600 }}>{colTasks.length}</span>
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px 12px' }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+        <span style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-1)' }}>{label}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--fg-4)', fontWeight: 600, background: 'var(--bg-3)', padding: '2px 8px', borderRadius: 10 }}>{tasks.length}</span>
+      </div>
 
-            {/* Cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minHeight: 150, background: 'var(--bg-2)', borderRadius: 'var(--radius-lg)', padding: '6px 4px' }}>
-              {colTasks.map((t, index) => (
-                <React.Fragment key={t.id}>
-                  <div
-                    onDragOver={(e) => handleDragOver(e, col.key, index)}
-                    onDrop={(e) => handleDrop(e, col.key, index)}
-                    style={{
-                      height: 12,
-                      transition: 'all 0.2s',
-                      background: dragOverCol === col.key && dragOverIndex === index ? 'var(--kamel-blue-soft)' : 'transparent',
-                      borderRadius: 4
-                    }}
-                  />
-                  <KanbanCard task={t} onSelect={onSelect} />
-                </React.Fragment>
-              ))}
-              <div
-                onDragOver={(e) => handleDragOver(e, col.key, colTasks.length)}
-                onDrop={(e) => handleDrop(e, col.key, colTasks.length)}
-                style={{
-                  height: 30,
-                  transition: 'all 0.2s',
-                  background: dragOverCol === col.key && dragOverIndex === colTasks.length ? 'var(--kamel-blue-soft)' : 'transparent',
-                  borderRadius: 4,
-                  marginTop: 'auto'
-                }}
-              />
-            </div>
-          </div>
-        );
-      })}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        onDragOver={(e) => handleDragOver(e, tasks.length)}
+        onDrop={(e) => handleDrop(e, tasks.length)}
+        onDragLeave={() => setDragOverIndex(null)}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          background: 'var(--bg-2)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          border: '1px solid var(--border-1)'
+        }}
+      >
+        {tasks.map((t, index) => (
+          <React.Fragment key={t.id}>
+             <div
+               onDragOver={(e) => handleDragOver(e, index)}
+               onDrop={(e) => handleDrop(e, index)}
+               style={{
+                 height: dragOverIndex === index ? 40 : 0,
+                 background: 'var(--kamel-blue-soft)',
+                 borderRadius: 'var(--radius-md)',
+                 transition: 'all 0.2s'
+               }}
+             />
+             <KanbanCard task={t} onSelect={onSelect} />
+          </React.Fragment>
+        ))}
+        {loading && <Spinner />}
+        <div style={{ height: 20, flexShrink: 0 }} />
+      </div>
     </div>
   );
 }
@@ -318,6 +392,7 @@ function KanbanCard({ task: t, onSelect }: {
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('taskId', t.id);
+    e.dataTransfer.setData('sourceStatus', t.status);
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -362,6 +437,11 @@ function KanbanCard({ task: t, onSelect }: {
               {isOverdue ? '⚠ ' : '📅 '} {formatDate(t.due_date)}
             </span>
           )}
+          {t.file_uploads && JSON.parse(t.file_uploads).length > 0 && (
+             <span style={{ fontSize: 11, color: 'var(--fg-4)' }} title="Attachments">
+               📎 {JSON.parse(t.file_uploads).length}
+             </span>
+          )}
           {(t.comment_count ?? 0) > 0 && (
             <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>
               💬 {t.comment_count}
@@ -381,8 +461,9 @@ function KanbanCard({ task: t, onSelect }: {
 
 // ── Task Detail Modal ─────────────────────────────────────────────────────────
 
-function TaskDetailModal({ task, onClose, onUpdated, onDeleted }: {
+function TaskDetailModal({ task, users, onClose, onUpdated, onDeleted }: {
   task: KanbanTask;
+  users: User[];
   onClose: () => void;
   onUpdated: (t: KanbanTask) => void;
   onDeleted: (id: string) => void;
@@ -392,6 +473,7 @@ function TaskDetailModal({ task, onClose, onUpdated, onDeleted }: {
   const [comments, setComments] = useState<KanbanComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
   const [commentBody, setCommentBody] = useState('');
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
   const [sendingComment, setSendingComment] = useState(false);
   const [t, setT] = useState(task);
 
@@ -401,15 +483,35 @@ function TaskDetailModal({ task, onClose, onUpdated, onDeleted }: {
 
   async function sendComment(e: React.FormEvent) {
     e.preventDefault();
-    if (!commentBody.trim()) return;
+    if (!commentBody.trim() && commentFiles.length === 0) return;
     setSendingComment(true);
     try {
-      const c = await kanbanApi.addComment(task.id, commentBody.trim());
+      // Upload all files first
+      const filePaths: string[] = [];
+      for (const file of commentFiles) {
+        const { path } = await kanbanApi.uploadGeneric(file);
+        filePaths.push(path);
+      }
+      
+      const c = await kanbanApi.addComment(task.id, commentBody.trim(), filePaths);
       setComments(cs => [...cs, c]);
       setCommentBody('');
+      setCommentFiles([]);
     } finally {
       setSendingComment(false);
     }
+  }
+
+  async function handleFileUpload(file: File) {
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File too large (max 5MB)");
+      return;
+    }
+    const { path } = await kanbanApi.uploadFile(task.id, file);
+    const oldPaths = JSON.parse(t.file_uploads || '[]');
+    const updated = { ...t, file_uploads: JSON.stringify([...oldPaths, path]) };
+    setT(updated);
+    onUpdated(updated);
   }
 
   async function moveStatus(status: KanbanTask['status']) {
@@ -430,6 +532,7 @@ function TaskDetailModal({ task, onClose, onUpdated, onDeleted }: {
       {editing ? (
         <EditTaskForm
           task={t}
+          users={users}
           onSaved={(updated) => { setT(updated); onUpdated(updated); setEditing(false); }}
           onCancel={() => setEditing(false)}
         />
@@ -461,9 +564,32 @@ function TaskDetailModal({ task, onClose, onUpdated, onDeleted }: {
           {t.description && (
             <div>
               <p style={{ fontWeight: 600, fontSize: 12, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Description</p>
-              <p className="body-sm" style={{ whiteSpace: 'pre-wrap' }}>{t.description}</p>
+              <p className="body-sm" style={{ whiteSpace: 'pre-wrap', marginBottom: 6 }}>
+                {t.description.split(/(@[^\s,.]+)/).map((part, i) =>
+                   part.startsWith('@') ? <span key={i} style={{ color: 'var(--kamel-blue)', fontWeight: 600 }}>{part}</span> : part
+                )}
+              </p>
             </div>
           )}
+
+          {/* Attachments */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+               <p style={{ fontWeight: 600, fontSize: 12, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>Attachments</p>
+               <label className="dmms-btn dmms-btn-secondary dmms-btn-sm" style={{ cursor: 'pointer' }}>
+                 <input type="file" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
+                 Upload
+               </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {JSON.parse(t.file_uploads || '[]').map((path: string, i: number) => (
+                <a key={i} href={path} target="_blank" rel="noreferrer" style={{ padding: '6px 10px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 6, fontSize: 12, color: 'var(--kamel-blue)', textDecoration: 'none' }}>
+                  File {i + 1}
+                </a>
+              ))}
+              {JSON.parse(t.file_uploads || '[]').length === 0 && <p className="meta">No attachments</p>}
+            </div>
+          </div>
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8 }}>
@@ -488,22 +614,57 @@ function TaskDetailModal({ task, onClose, onUpdated, onDeleted }: {
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{c.author_name}</span>
                         <span className="meta">{formatDate(c.created_at)}</span>
                       </div>
-                      <p className="body-sm" style={{ marginLeft: 32, whiteSpace: 'pre-wrap' }}>{c.body}</p>
+                      <div style={{ marginLeft: 32 }}>
+                        <p className="body-sm" style={{ whiteSpace: 'pre-wrap', marginBottom: 6 }}>
+                          {c.body.split(/(@[^\s,.]+)/).map((part, i) =>
+                            part.startsWith('@') ? <span key={i} style={{ color: 'var(--kamel-blue)', fontWeight: 600 }}>{part}</span> : part
+                          )}
+                        </p>
+                        
+                        {c.file_uploads && JSON.parse(c.file_uploads).length > 0 && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {JSON.parse(c.file_uploads).map((path: string, i: number) => (
+                              <a key={i} href={path} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--kamel-blue)', textDecoration: 'none', background: 'var(--bg-3)', padding: '2px 8px', borderRadius: 12, border: '1px solid var(--border-1)' }}>
+                                📎 Attachment {i+1}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </li>
                   ))}
                   {comments.length === 0 && <li><p className="meta">No comments yet.</p></li>}
                 </ul>
-                <form onSubmit={sendComment} style={{ display: 'flex', gap: 8 }}>
-                  <Textarea
+                <form onSubmit={sendComment} style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg-2)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-1)' }}>
+                  <MentionsTextarea
                     value={commentBody}
-                    onChange={e => setCommentBody(e.target.value)}
+                    onChangeValue={setCommentBody}
+                    users={users}
                     placeholder={user?.role === 'pm' ? 'Leave feedback or instructions…' : 'Ask a question or give an update…'}
                     rows={2}
-                    style={{ flex: 1 }}
+                    style={{ background: 'var(--bg-1)' }}
                   />
-                  <Button type="submit" size="sm" disabled={sendingComment || !commentBody.trim()} style={{ alignSelf: 'flex-end' }}>
-                    Send
-                  </Button>
+                  
+                  {commentFiles.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {commentFiles.map((f, i) => (
+                        <span key={i} style={{ fontSize: 11, background: 'var(--bg-3)', padding: '2px 8px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {f.name}
+                          <button type="button" onClick={() => setCommentFiles(fs => fs.filter((_, idx) => idx !== i))} style={{ border: 'none', background: 'none', color: 'var(--rose)', cursor: 'pointer', padding: 0 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ cursor: 'pointer' }}>
+                       <input type="file" multiple style={{ display: 'none' }} onChange={e => e.target.files && setCommentFiles(fs => [...fs, ...Array.from(e.target.files!)])} />
+                       <span style={{ fontSize: 13, color: 'var(--kamel-blue)', fontWeight: 500 }}>📎 Attach files</span>
+                    </label>
+                    <Button type="submit" size="sm" disabled={sendingComment || (!commentBody.trim() && commentFiles.length === 0)}>
+                      {sendingComment ? 'Sending…' : 'Send Comment'}
+                    </Button>
+                  </div>
                 </form>
               </>
             )}
@@ -516,8 +677,9 @@ function TaskDetailModal({ task, onClose, onUpdated, onDeleted }: {
 
 // ── Edit Task Form ────────────────────────────────────────────────────────────
 
-function EditTaskForm({ task, onSaved, onCancel }: {
+function EditTaskForm({ task, users, onSaved, onCancel }: {
   task: KanbanTask;
+  users: User[];
   onSaved: (t: KanbanTask) => void;
   onCancel: () => void;
 }) {
@@ -557,7 +719,7 @@ function EditTaskForm({ task, onSaved, onCancel }: {
         <Input value={form.title} onChange={e => set('title', e.target.value)} required />
       </FormField>
       <FormField label="Description">
-        <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} />
+        <MentionsTextarea value={form.description} onChangeValue={v => set('description', v)} users={users} rows={3} />
       </FormField>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormField label="Status">
@@ -580,8 +742,9 @@ function EditTaskForm({ task, onSaved, onCancel }: {
 
 // ── Create Task Modal ─────────────────────────────────────────────────────────
 
-function CreateTaskModal({ projects, assignedTo, onClose, onCreate }: {
+function CreateTaskModal({ projects, users, assignedTo, onClose, onCreate }: {
   projects: Project[];
+  users: User[];
   assignedTo?: string;
   onClose: () => void;
   onCreate: (t: KanbanTask) => void;
@@ -669,7 +832,7 @@ function CreateTaskModal({ projects, assignedTo, onClose, onCreate }: {
           <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="What needs to be done?" required />
         </FormField>
         <FormField label="Description (optional)">
-          <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} />
+          <MentionsTextarea value={form.description} onChangeValue={v => set('description', v)} users={users} rows={2} />
         </FormField>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <FormField label="Start in column">

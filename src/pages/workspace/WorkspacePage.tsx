@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { deliverablesApi } from '../../api';
-import type { Deliverable, Task, Subtask, Submission } from '../../types';
+import type { Deliverable, Task, Submission } from '../../types';
 import { Card, Badge, Button, Input, Textarea, FormField, Spinner, Modal } from '../../components/ui';
 import { formatCurrency, formatDate, deliverableStatusColor, deliverableStatusLabel } from '../../lib/statusColors';
 

@@ -59,6 +59,7 @@ func main() {
 	mux.HandleFunc("POST /api/dmms/auth/register", authH.Register)
 	mux.HandleFunc("POST /api/dmms/auth/login", authH.Login)
 	mux.Handle("GET /api/dmms/auth/me", authMW(http.HandlerFunc(authH.Me)))
+	mux.Handle("GET /api/dmms/users", authMW(http.HandlerFunc(adminH.ListUsers)))
 
 	// Projects (PM)
 	mux.Handle("GET /api/dmms/projects", authMW(http.HandlerFunc(projectH.List)))
@@ -125,6 +126,7 @@ func main() {
 	mux.Handle("DELETE /api/dmms/kanban/{id}", authMW(http.HandlerFunc(kanbanH.Delete)))
 	mux.Handle("GET /api/dmms/kanban/{id}/comments", authMW(http.HandlerFunc(kanbanH.ListComments)))
 	mux.Handle("POST /api/dmms/kanban/{id}/comments", authMW(http.HandlerFunc(kanbanH.CreateComment)))
+	mux.Handle("POST /api/dmms/files", authMW(http.HandlerFunc(kanbanH.UploadGeneric)))
 
 	// Admin
 	mux.Handle("GET /api/dmms/admin/users", authMW(adminOnly(http.HandlerFunc(adminH.ListUsers))))
@@ -150,7 +152,7 @@ func main() {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

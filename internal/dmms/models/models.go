@@ -121,6 +121,7 @@ type Task struct {
 	Position       int          `json:"position" gorm:"not null;default:0"`
 	CreatedAt      time.Time    `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 	UpdatedAt      time.Time    `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
+	FilePaths      string       `json:"file_uploads" gorm:"column:file_uploads;default:'[]'"`
 	// Enriched fields
 	ProjectName      string `json:"project_name,omitempty" gorm:"->"`
 	DeliverableTitle string `json:"deliverable_title,omitempty" gorm:"->"`
@@ -146,6 +147,7 @@ type TaskComment struct {
 	AuthorID   string    `json:"author_id" gorm:"column:author_id;not null;size:191"`
 	AuthorName string    `json:"author_name,omitempty" gorm:"->"`
 	Body       string    `json:"body" gorm:"not null"`
+	FilePaths  string    `json:"file_uploads" gorm:"column:file_uploads;default:'[]'"`
 	CreatedAt  time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 }
 

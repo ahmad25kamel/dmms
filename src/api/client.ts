@@ -18,6 +18,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+  if (headers['Content-Type'] === 'null' || !headers['Content-Type']) {
+    delete headers['Content-Type'];
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -35,5 +38,12 @@ export const api = {
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<T>(path, { method: 'POST', body: fd, headers: { 'Content-Type': '' } as any });
+  },
 };

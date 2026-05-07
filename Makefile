@@ -4,6 +4,8 @@
 build:
 	@echo "Building frontend..."
 	npm run build
+	@echo "Building MCP server..."
+	npm run build:mcp
 	@echo "Tidying Go modules..."
 	go mod tidy
 	@echo "Building Go binary..."

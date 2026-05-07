@@ -29,6 +29,7 @@ func (r *TaskRepo) Update(t *models.Task) error {
 		"is_required": t.IsRequired,
 		"due_date": t.DueDate,
 		"position": t.Position,
+		"file_uploads": t.FilePaths,
 	}).Error
 }
 
@@ -71,41 +72,62 @@ func (r *TaskRepo) ListByDeliverable(deliverableID string) ([]*models.Task, erro
 	return out, err
 }
 
-func (r *TaskRepo) ListByProject(projectID string) ([]*models.Task, error) {
+func (r *TaskRepo) ListByProject(projectID string, limit, offset int, status string) ([]*models.Task, error) {
 	var out []*models.Task
-	err := r.db.Model(&models.Task{}).
+	q := r.db.Model(&models.Task{}).
 		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
 		Joins("Creator").
-		Where("dmms_tasks.project_id = ?", projectID).
-		Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
+		Where("dmms_tasks.project_id = ?", projectID)
+	
+	if status != "" {
+		q = q.Where("dmms_tasks.status = ?", status)
+	}
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	err := q.Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
-func (r *TaskRepo) ListAll() ([]*models.Task, error) {
+func (r *TaskRepo) ListAll(limit, offset int, status string) ([]*models.Task, error) {
 	var out []*models.Task
-	err := r.db.Model(&models.Task{}).
+	q := r.db.Model(&models.Task{}).
 		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
-		Joins("Creator").
-		Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
+		Joins("Creator")
+		
+	if status != "" {
+		q = q.Where("dmms_tasks.status = ?", status)
+	}
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	err := q.Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
-func (r *TaskRepo) ListForContributor(userID string) ([]*models.Task, error) {
+func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status string) ([]*models.Task, error) {
 	var out []*models.Task
-	err := r.db.Model(&models.Task{}).
+	q := r.db.Model(&models.Task{}).
 		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
 		Joins("Creator").
-		Where("dmms_tasks.assigned_to = ? OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id=dmms_tasks.deliverable_id AND dd.owner_id=? AND dd.deleted_at IS NULL)", userID, userID).
-		Order("dmms_tasks.status, dmms_tasks.project_id, dmms_tasks.position").Scan(&out).Error
+		Where("(dmms_tasks.assigned_to = ? OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id=dmms_tasks.deliverable_id AND dd.owner_id=? AND dd.deleted_at IS NULL))", userID, userID)
+		
+	if status != "" {
+		q = q.Where("dmms_tasks.status = ?", status)
+	}
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	err := q.Order("dmms_tasks.status, dmms_tasks.project_id, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
@@ -113,7 +135,7 @@ func (r *TaskRepo) ListForContributor(userID string) ([]*models.Task, error) {
 func (r *TaskRepo) ListComments(taskID string) ([]*models.TaskComment, error) {
 	var out []*models.TaskComment
 	err := r.db.Table("dmms_task_comments c").
-		Select("c.id, c.task_id, c.author_id, COALESCE(u.name,'') as author_name, c.body, c.created_at").
+		Select("c.id, c.task_id, c.author_id, COALESCE(u.name,'') as author_name, c.body, c.file_uploads, c.created_at").
 		Joins("LEFT JOIN dmms_users u ON u.id=c.author_id").
 		Where("c.task_id = ?", taskID).
 		Order("c.created_at").Scan(&out).Error
@@ -123,7 +145,7 @@ func (r *TaskRepo) ListComments(taskID string) ([]*models.TaskComment, error) {
 func (r *TaskRepo) GetComment(id string) (*models.TaskComment, error) {
 	var c models.TaskComment
 	err := r.db.Table("dmms_task_comments c").
-		Select("c.id, c.task_id, c.author_id, COALESCE(u.name,'') as author_name, c.body, c.created_at").
+		Select("c.id, c.task_id, c.author_id, COALESCE(u.name,'') as author_name, c.body, c.file_uploads, c.created_at").
 		Joins("LEFT JOIN dmms_users u ON u.id=c.author_id").
 		Where("c.id = ?", id).Scan(&c).Error
 	if err != nil {
@@ -137,5 +159,12 @@ func (r *TaskRepo) CreateComment(c *models.TaskComment) (*models.TaskComment, er
 		return nil, err
 	}
 	return r.GetComment(c.ID)
+}
+
+func (r *TaskRepo) UpdateComment(c *models.TaskComment) error {
+	return r.db.Model(&models.TaskComment{}).Where("id = ?", c.ID).Updates(map[string]interface{}{
+		"body": c.Body,
+		"file_uploads": c.FilePaths,
+	}).Error
 }
 

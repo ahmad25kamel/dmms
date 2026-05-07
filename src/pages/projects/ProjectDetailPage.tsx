@@ -168,7 +168,7 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
-      {error && <Alert type="error" style={{ marginBottom: 20 }}>{error}</Alert>}
+      {error && <Alert type="error">{error}</Alert>}
 
       <div className="dmms-grid dmms-grid-4" style={{ marginBottom: 32 }}>
         <KpiCard label="Total Budget" value={formatCurrency(project.budget_total)} />
@@ -208,7 +208,7 @@ export function ProjectDetailPage() {
         {tree.length === 0 ? (
           <p className="meta">No deliverables found.</p>
         ) : (
-          <GanttChart tree={tree} />
+          <GanttChart tree={tree} project={project} />
         )}
       </div>
 
@@ -272,128 +272,277 @@ export function ProjectDetailPage() {
   );
 }
 
-function GanttChart({ tree }: { tree: Deliverable[] }) {
-  // Flatten tree for chart
-  const flat: { d: Deliverable; depth: number }[] = [];
+function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project }) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const toggleCollapse = (id: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Flatten tree for chart with collapsed state
+  const flat: { d: Deliverable; depth: number; hasChildren: boolean }[] = [];
   function flatten(nodes: Deliverable[], depth = 0) {
     nodes.forEach(n => {
-      flat.push({ d: n, depth });
-      if (n.children?.length) flatten(n.children, depth + 1);
+      const hasChildren = !!(n.children && n.children.length > 0);
+      flat.push({ d: n, depth, hasChildren });
+      if (hasChildren && !collapsed.has(n.id)) {
+        flatten(n.children!, depth + 1);
+      }
     });
   }
   flatten(tree);
 
-  // Find bounds
-  let minStart = Infinity;
-  let maxEnd = -Infinity;
+  // Find absolute date bounds (including project dates and hidden nodes)
+  let minDate = new Date();
+  let maxDate = new Date();
+  let hasDates = false;
 
-  flat.forEach(({ d }) => {
-    if (d.start_date) {
-      const t = new Date(d.start_date).getTime();
-      if (t < minStart) minStart = t;
+  const updateBounds = (d: Date) => {
+    const t = d.getTime();
+    if (isNaN(t)) return;
+    if (!hasDates) {
+      minDate = new Date(t);
+      maxDate = new Date(t);
+      hasDates = true;
+    } else {
+      if (t < minDate.getTime()) minDate = new Date(t);
+      if (t > maxDate.getTime()) maxDate = new Date(t);
     }
-    if (d.due_date) {
-      const t = new Date(d.due_date).getTime();
-      if (t > maxEnd) maxEnd = t;
-    }
-  });
+  };
 
-  const hasDates = minStart !== Infinity && maxEnd !== -Infinity && minStart <= maxEnd;
-  const paddingMs = 7 * 24 * 60 * 60 * 1000; // 7 days padding
+  // Include project dates
+  if (project?.start_date) updateBounds(new Date(project.start_date));
+  if (project?.end_date) updateBounds(new Date(project.end_date));
 
-  let chartStart = minStart - paddingMs;
-  let chartEnd = maxEnd + paddingMs;
+  // Include all deliverable dates
+  function findBounds(nodes: Deliverable[]) {
+    nodes.forEach(n => {
+      if (n.start_date) updateBounds(new Date(n.start_date));
+      if (n.due_date) updateBounds(new Date(n.due_date));
+      if (n.children?.length) findBounds(n.children);
+    });
+  }
+  findBounds(tree);
+
+  // Default range if no dates found
   if (!hasDates) {
-    const now = Date.now();
-    chartStart = now - paddingMs;
-    chartEnd = now + paddingMs;
+    const now = new Date();
+    minDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    maxDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   }
-  
-  const duration = chartEnd - chartStart;
 
-  const weeks = [];
-  for (let t = chartStart; t <= chartEnd; t += paddingMs) {
-    weeks.push(t);
+  // Generate months and weeks
+  const months: { name: string; year: number; weeks: { label: string; start: number; end: number }[] }[] = [];
+  
+  const startY = minDate.getFullYear();
+  const startM = minDate.getMonth();
+  const endY = maxDate.getFullYear();
+  const endM = maxDate.getMonth();
+
+  for (let y = startY; y <= endY; y++) {
+    const mFrom = y === startY ? startM : 0;
+    const mTo = y === endY ? endM : 11;
+    
+    for (let m = mFrom; m <= mTo; m++) {
+      const date = new Date(y, m, 1);
+      const monthName = date.toLocaleString('id-ID', { month: 'long' });
+      const monthWeeks: { label: string; start: number; end: number }[] = [];
+      
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      for (let i = 0; i < daysInMonth; i += 7) {
+        const weekNum = Math.floor(i / 7) + 1;
+        const weekStart = new Date(y, m, i + 1);
+        const weekEnd = new Date(y, m, Math.min(i + 7, daysInMonth));
+        monthWeeks.push({
+          label: `W${weekNum}`,
+          start: weekStart.getTime(),
+          end: weekEnd.getTime()
+        });
+      }
+      
+      months.push({ name: monthName, year: y, weeks: monthWeeks });
+    }
   }
+
+  const startMonth = new Date(startY, startM, 1);
+  const endMonth = new Date(endY, endM + 1, 0);
+
+  const WEEK_WIDTH = 50;
+  const totalWeeks = months.reduce((acc, m) => acc + m.weeks.length, 0);
+  const timelineWidth = totalWeeks * WEEK_WIDTH;
+  const chartStartTime = startMonth.getTime();
+  const chartEndTime = endMonth.getTime() + 24 * 60 * 60 * 1000;
+  const totalDuration = chartEndTime - chartStartTime;
+
+  const getX = (time: number) => {
+    return ((time - chartStartTime) / totalDuration) * 100;
+  };
 
   return (
-    <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-lg)', overflowX: 'auto', padding: '16px 0' }}>
-      <div style={{ minWidth: 1200, padding: '0 20px' }}>
-        {/* Header dates (rough ticks) */}
-        <div style={{ display: 'flex', position: 'relative', height: 24, borderBottom: '1px solid var(--border-1)', marginBottom: 12 }}>
-          <div style={{ width: '30%', minWidth: 250, position: 'sticky', left: 0, background: 'var(--bg-1)', zIndex: 10 }} />
-          <div style={{ flexGrow: 1, position: 'relative' }}>
-            {weeks.map((w, i) => {
-              const leftPct = ((w - chartStart) / duration) * 100;
-              return (
-                <div key={i} style={{ position: 'absolute', left: `${leftPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border-1)' }} />
-              );
-            })}
-            <span className="meta" style={{ position: 'absolute', left: 0, background: 'var(--bg-1)', paddingRight: 4 }}>{new Date(chartStart).toLocaleDateString()}</span>
-            <span className="meta" style={{ position: 'absolute', right: 0, background: 'var(--bg-1)', paddingLeft: 4 }}>{new Date(chartEnd).toLocaleDateString()}</span>
-          </div>
-        </div>
-
-        {/* Rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {flat.map(({ d, depth }) => {
-            let leftPct = 0;
-            let widthPct = 0;
-            const hasStart = !!d.start_date;
-            const hasEnd = !!d.due_date;
-
-            if (hasStart && hasEnd) {
-              const s = new Date(d.start_date!).getTime();
-              const e = new Date(d.due_date!).getTime();
-              leftPct = ((s - chartStart) / duration) * 100;
-              widthPct = ((e - s) / duration) * 100;
-            } else if (hasStart || hasEnd) {
-              const time = new Date((d.start_date || d.due_date)!).getTime();
-              leftPct = ((time - chartStart) / duration) * 100;
-              widthPct = 2; // Fixed small width for single dates
-            }
-
-            const isMilestone = widthPct === 2;
-
-            return (
-              <div key={d.id} style={{ display: 'flex', alignItems: 'center', position: 'relative', height: 32 }}>
-                {/* Title */}
-                <div style={{ width: '30%', minWidth: 250, flexShrink: 0, paddingLeft: depth * 16, display: 'flex', alignItems: 'center', gap: 8, zIndex: 10, background: 'var(--bg-1)', position: 'sticky', left: 0 }}>
-                  <Badge color={projectStatusColor[d.status] || 'gray'}>{d.status.replace(/_/g, ' ')}</Badge>
-                  <span style={{ fontSize: 13, fontWeight: depth === 0 ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {d.title}
-                  </span>
-                </div>
-
-                {/* Bar area */}
-                <div style={{ flexGrow: 1, position: 'relative', height: '100%', background: 'transparent', borderRadius: 4 }}>
-                  {weeks.map((w, i) => {
-                    const leftPct = ((w - chartStart) / duration) * 100;
-                    return (
-                      <div key={i} style={{ position: 'absolute', left: `${leftPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--border-1)', zIndex: 0 }} />
-                    );
-                  })}
-                  {(hasStart || hasEnd) && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: `${Math.max(0, leftPct)}%`,
-                        width: `${Math.max(2, widthPct)}%`,
-                        height: isMilestone ? 16 : 20,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: isMilestone ? 'var(--amber)' : 'var(--kamel-blue)',
-                        borderRadius: isMilestone ? '50%' : 4,
-                        boxShadow: 'var(--shadow-1)',
-                        zIndex: 2
-                      }}
-                      title={`${d.title}\nStart: ${d.start_date ? formatDate(d.start_date) : '?'}\nEnd: ${d.due_date ? formatDate(d.due_date) : '?'}`}
-                    />
-                  )}
-                </div>
+    <div style={{ 
+      background: 'var(--bg-1)', 
+      border: '1px solid var(--border-1)', 
+      borderRadius: 'var(--radius-lg)', 
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      <div style={{ overflowX: 'auto' }}>
+        <div style={{ minWidth: 800 + timelineWidth, display: 'flex', flexDirection: 'column' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg-1)' }}>
+            <div style={{ width: 350, flexShrink: 0, borderRight: '1px solid var(--border-1)', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', position: 'sticky', left: 0, zIndex: 30, display: 'flex', alignItems: 'center', padding: '0 16px', fontSize: 12, fontWeight: 600, color: 'var(--fg-3)' }}>
+              DELIVERABLE
+            </div>
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* Months */}
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border-1)' }}>
+                {months.map((m, i) => (
+                  <div key={i} style={{ 
+                    width: m.weeks.length * WEEK_WIDTH, 
+                    flexShrink: 0, 
+                    padding: '8px 12px', 
+                    fontSize: 12, 
+                    fontWeight: 600, 
+                    borderRight: '1px solid var(--border-1)',
+                    background: 'var(--bg-2)'
+                  }}>
+                    {m.name} {m.year}
+                  </div>
+                ))}
               </div>
-            );
-          })}
+              {/* Weeks */}
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border-1)' }}>
+                {months.map((m) => m.weeks.map((w, j) => (
+                  <div key={`${m.name}-${j}`} style={{ 
+                    width: WEEK_WIDTH, 
+                    flexShrink: 0, 
+                    textAlign: 'center', 
+                    fontSize: 10, 
+                    padding: '4px 0', 
+                    borderRight: '1px solid var(--border-1)',
+                    color: 'var(--fg-3)'
+                  }}>
+                    {w.label}
+                  </div>
+                )))}
+              </div>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div style={{ position: 'relative' }}>
+            {/* Grid Lines */}
+            <div style={{ position: 'absolute', top: 0, bottom: 0, left: 350, right: 0, display: 'flex', pointerEvents: 'none' }}>
+              {months.map((m) => m.weeks.map((_, j) => (
+                <div key={`${m.name}-${j}`} style={{ width: WEEK_WIDTH, flexShrink: 0, borderRight: '1px solid var(--border-1)', opacity: 0.2, height: '100%' }} />
+              )))}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {flat.map(({ d, depth, hasChildren }) => {
+                const s = d.start_date ? new Date(d.start_date).getTime() : null;
+                const e = d.due_date ? new Date(d.due_date).getTime() : null;
+                
+                let left = 0;
+                let width = 0;
+                let isPoint = false;
+
+                if (s && e) {
+                  left = getX(s);
+                  width = getX(e) - left;
+                } else if (s || e) {
+                  left = getX(s || e || 0);
+                  width = 1; 
+                  isPoint = true;
+                }
+
+                return (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', height: 40, borderBottom: '1px solid var(--border-1)', position: 'relative' }}>
+                    {/* Sticky Title Column */}
+                    <div style={{ 
+                      width: 350, 
+                      flexShrink: 0, 
+                      paddingLeft: 16 + depth * 20, 
+                      paddingRight: 16,
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      zIndex: 10, 
+                      background: 'var(--bg-1)', 
+                      position: 'sticky', 
+                      left: 0,
+                      height: '100%',
+                      borderRight: '1px solid var(--border-1)'
+                    }}>
+                      {hasChildren ? (
+                        <button 
+                          onClick={() => toggleCollapse(d.id)}
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            padding: 0, 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            color: 'var(--fg-3)',
+                            transform: collapsed.has(d.id) ? 'rotate(-90deg)' : 'none',
+                            transition: 'transform 0.2s'
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                      ) : (
+                        <div style={{ width: 14 }} />
+                      )}
+                      <span style={{ 
+                        fontSize: 13, 
+                        fontWeight: depth === 0 ? 600 : 400, 
+                        whiteSpace: 'nowrap', 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis',
+                        color: depth === 0 ? 'var(--fg-1)' : 'var(--fg-2)'
+                      }}>
+                        {d.title}
+                      </span>
+                    </div>
+
+                    {/* Timeline Bar Area */}
+                    <div style={{ flexGrow: 1, position: 'relative', height: '100%' }}>
+                      {(s || e) && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: `${left}%`,
+                            width: isPoint ? 'auto' : `${Math.max(0.5, width)}%`,
+                            height: 24,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: isPoint ? 'var(--amber)' : 'var(--kamel-blue)',
+                            borderRadius: isPoint ? '12px' : '4px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                            zIndex: 2,
+                            minWidth: isPoint ? 24 : 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title={`${d.title}\nStart: ${d.start_date ? formatDate(d.start_date) : '?'}\nEnd: ${d.due_date ? formatDate(d.due_date) : '?'}`}
+                        >
+                          {isPoint && <div style={{ width: 8, height: 8, background: 'white', borderRadius: '50%' }} />}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>

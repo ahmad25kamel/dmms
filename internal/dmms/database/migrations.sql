@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS dmms_tasks (
   is_required    INTEGER NOT NULL DEFAULT 0, -- 1 for PM checklist, 0 for contributor subtasks
   due_date       DATETIME,
   position       INTEGER NOT NULL DEFAULT 0,
+  file_uploads   TEXT DEFAULT '[]',
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS dmms_task_comments (
   task_id    TEXT NOT NULL REFERENCES dmms_tasks(id) ON DELETE CASCADE,
   author_id  TEXT NOT NULL REFERENCES dmms_users(id),
   body       TEXT NOT NULL,
+  file_uploads TEXT DEFAULT '[]',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_tcomment_task ON dmms_task_comments(task_id);

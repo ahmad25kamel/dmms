@@ -1,6 +1,6 @@
 import { api } from './client';
 import type {
-  User, Project, Deliverable, Task, Subtask,
+  User, Project, Deliverable, Task,
   Proposal, Submission, RewardLedgerEntry, KanbanTask, KanbanComment,
 } from '../types';
 
@@ -11,6 +11,10 @@ export const authApi = {
   login: (body: { email: string; password: string }) =>
     api.post<{ user: User; token: string }>('/auth/login', body),
   me: () => api.get<User>('/auth/me'),
+};
+
+export const usersApi = {
+  list: () => api.get<User[]>('/users'),
 };
 
 // Projects
@@ -87,21 +91,34 @@ export const rewardsApi = {
 
 // Kanban
 export const kanbanApi = {
-  list: (params?: { project_id?: string; deliverable_id?: string; assigned_to?: string }) => {
+  list: (params?: { project_id?: string; deliverable_id?: string; assigned_to?: string; status?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
     if (params?.project_id) q.set('project_id', params.project_id);
     if (params?.deliverable_id) q.set('deliverable_id', params.deliverable_id);
     if (params?.assigned_to) q.set('assigned_to', params.assigned_to);
+    if (params?.status) q.set('status', params.status);
+    if (params?.limit) q.set('limit', params.limit.toString());
+    if (params?.offset) q.set('offset', params.offset.toString());
     const qs = q.toString();
     return api.get<KanbanTask[]>(`/kanban${qs ? '?' + qs : ''}`);
   },
-  mine: () => api.get<KanbanTask[]>('/kanban/mine'),
+  mine: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.limit) q.set('limit', params.limit.toString());
+    if (params?.offset) q.set('offset', params.offset.toString());
+    const qs = q.toString();
+    return api.get<KanbanTask[]>(`/kanban/mine${qs ? '?' + qs : ''}`);
+  },
   create: (body: Partial<KanbanTask> & { due_date?: string }) => api.post<KanbanTask>('/kanban', body),
   update: (id: string, body: Partial<KanbanTask> & { due_date?: string }) => api.patch<KanbanTask>(`/kanban/${id}`, body),
   reorder: (body: { id: string; status: string; position: number }[]) => api.put<{ success: boolean }>('/kanban/reorder', body),
   delete: (id: string) => api.delete<{ deleted: boolean }>(`/kanban/${id}`),
   listComments: (id: string) => api.get<KanbanComment[]>(`/kanban/${id}/comments`),
-  addComment: (id: string, body: string) => api.post<KanbanComment>(`/kanban/${id}/comments`, { body }),
+  addComment: (id: string, body: string, file_uploads?: string[]) => api.post<KanbanComment>(`/kanban/${id}/comments`, { body, file_uploads }),
+  uploadGeneric: (file: File) => api.upload<{ path: string }>('/files', file),
+  uploadFile: (id: string, file: File) => api.upload<{ path: string }>(`/kanban/${id}/files`, file),
+  uploadCommentFile: (id: string, file: File) => api.upload<{ path: string }>(`/kanban/comments/${id}/files`, file),
 };
 
 // Admin

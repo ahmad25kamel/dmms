@@ -1,7 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"finance-game/internal/dmms/middleware"
@@ -18,16 +23,20 @@ func NewKanbanHandler(tasks *repository.TaskRepo) *KanbanHandler {
 	return &KanbanHandler{tasks: tasks}
 }
 
-// GET /kanban?project_id=
+// GET /kanban?project_id=&limit=&offset=&status=
 func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
+	status := r.URL.Query().Get("status")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+
 	var tasks []*models.Task
 	var err error
 
 	if projectID != "" {
-		tasks, err = h.tasks.ListByProject(projectID)
+		tasks, err = h.tasks.ListByProject(projectID, limit, offset, status)
 	} else {
-		tasks, err = h.tasks.ListAll()
+		tasks, err = h.tasks.ListAll(limit, offset, status)
 	}
 
 	if err != nil {
@@ -43,7 +52,11 @@ func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
 // GET /kanban/mine (contributor view — all tasks for their deliverables)
 func (h *KanbanHandler) Mine(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
-	tasks, err := h.tasks.ListForContributor(userID)
+	status := r.URL.Query().Get("status")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+
+	tasks, err := h.tasks.ListForContributor(userID, limit, offset, status)
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to list tasks")
 		return
@@ -183,19 +196,28 @@ func (h *KanbanHandler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	taskID := r.PathValue("id")
 	authorID := middleware.GetUserID(r)
 	var body struct {
-		Body string `json:"body"`
+		Body      string   `json:"body"`
+		FilePaths []string `json:"file_uploads"`
 	}
-	if err := Decode(r, &body); err != nil || body.Body == "" {
-		Err(w, http.StatusBadRequest, "body is required")
+	if err := Decode(r, &body); err != nil {
+		Err(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	c := &models.TaskComment{
-		ID:       uuid.New().String(),
-		TaskID:   taskID,
-		AuthorID: authorID,
-		Body:     body.Body,
+
+	pathsJSON := ""
+	if len(body.FilePaths) > 0 {
+		b, _ := json.Marshal(body.FilePaths)
+		pathsJSON = string(b)
 	}
-	newComment, err := h.tasks.CreateComment(c)
+
+	comment := &models.TaskComment{
+		ID:        uuid.New().String(),
+		TaskID:    taskID,
+		AuthorID:  authorID,
+		Body:      body.Body,
+		FilePaths: pathsJSON,
+	}
+	newComment, err := h.tasks.CreateComment(comment)
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to create comment")
 		return
@@ -220,4 +242,84 @@ func (h *KanbanHandler) Reorder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+// POST /kanban/:id/files
+func (h *KanbanHandler) UploadTaskFile(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	handleFileUpload(w, r, func(filepath string) error {
+		t, err := h.tasks.Get(taskID)
+		if err != nil { return err }
+		// naive json array append
+		if t.FilePaths == "[]" || t.FilePaths == "" {
+			t.FilePaths = "[\"" + filepath + "\"]"
+		} else {
+			t.FilePaths = t.FilePaths[:len(t.FilePaths)-1] + ",\"" + filepath + "\"]"
+		}
+		if err := h.tasks.Update(t); err != nil { return err }
+		JSON(w, http.StatusOK, map[string]string{"path": filepath})
+		return nil
+	})
+}
+
+// POST /kanban/comments/:id/files
+func (h *KanbanHandler) UploadCommentFile(w http.ResponseWriter, r *http.Request) {
+	commentID := r.PathValue("id")
+	handleFileUpload(w, r, func(filepath string) error {
+		c, err := h.tasks.GetComment(commentID)
+		if err != nil { return err }
+		// naive json array append
+		if c.FilePaths == "[]" || c.FilePaths == "" {
+			c.FilePaths = "[\"" + filepath + "\"]"
+		} else {
+			c.FilePaths = c.FilePaths[:len(c.FilePaths)-1] + ",\"" + filepath + "\"]"
+		}
+		// Since we don't have UpdateComment in repo, we need to update it
+		// For simplicity, we just save via raw gorm update in repo or add a method.
+		if err := h.tasks.UpdateComment(c); err != nil { return err }
+		JSON(w, http.StatusOK, map[string]string{"path": filepath})
+		return nil
+	})
+}
+
+// POST /api/dmms/files (Generic upload)
+func (h *KanbanHandler) UploadGeneric(w http.ResponseWriter, r *http.Request) {
+	handleFileUpload(w, r, func(filepath string) error {
+		JSON(w, http.StatusOK, map[string]string{"path": filepath})
+		return nil
+	})
+}
+
+func handleFileUpload(w http.ResponseWriter, r *http.Request, updateFn func(string) error) {
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20) // 5 MB
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		Err(w, http.StatusBadRequest, "file too large or invalid")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		Err(w, http.StatusBadRequest, "file required")
+		return
+	}
+	defer file.Close()
+
+	os.MkdirAll("uploads", os.ModePerm)
+	ext := filepath.Ext(header.Filename)
+	newFilename := uuid.New().String() + ext
+	path := filepath.Join("uploads", newFilename)
+	dst, err := os.Create(path)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to save file")
+		return
+	}
+	defer dst.Close()
+	if _, err := io.Copy(dst, file); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to save file")
+		return
+	}
+
+	if err := updateFn("/" + path); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to link file")
+		return
+	}
 }

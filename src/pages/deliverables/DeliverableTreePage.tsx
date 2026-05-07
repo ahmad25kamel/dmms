@@ -161,7 +161,7 @@ function DeliverableNode({ deliverable: d, depth, projectId, onAddChild, onEdit,
             {d.visibility === 'private' && <Badge color="gray">Private</Badge>}
           </div>
           <div className="meta" style={{ marginTop: 2, display: 'flex', gap: 16 }}>
-            <span>Max {formatCurrency(d.max_budget)}</span>
+            {/* <span>Max {formatCurrency(d.max_budget)}</span> */}
             {d.accepted_budget != null && <span>Accepted {formatCurrency(d.accepted_budget)}</span>}
             {d.due_date && <span>Due {formatDate(d.due_date)}</span>}
           </div>
@@ -381,8 +381,8 @@ function EditDeliverableModal({ deliverable, onClose, onSaved }: {
         brief: form.brief,
         scope: form.scope,
         max_budget: parseFloat(form.max_budget) || 0,
-        start_date: form.start_date || null,
-        due_date: form.due_date || null,
+        start_date: form.start_date || undefined,
+        due_date: form.due_date || undefined,
         visibility: form.visibility as 'public' | 'private',
         acceptance_criteria: form.acceptance_criteria || '[]',
       });
@@ -466,8 +466,8 @@ function CreateDeliverableModal({ projectId, parentId, onClose, onCreate }: {
         brief: form.brief,
         scope: form.scope,
         max_budget: parseFloat(form.max_budget) || 0,
-        start_date: form.start_date || null,
-        due_date: form.due_date || null,
+        start_date: form.start_date || undefined,
+        due_date: form.due_date || undefined,
         visibility: form.visibility as 'public' | 'private',
         acceptance_criteria: form.acceptance_criteria || '[]',
       });
