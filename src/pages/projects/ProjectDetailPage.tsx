@@ -34,6 +34,10 @@ export function ProjectDetailPage() {
 
   const handleEditSave = async () => {
     if (!projectId) return;
+    if (!editForm.name?.trim()) {
+      setError('Project name cannot be empty');
+      return;
+    }
     setEditSaving(true);
     try {
       await projectsApi.update(projectId, {

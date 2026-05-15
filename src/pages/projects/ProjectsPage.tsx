@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '../../api';
 import type { Project } from '../../types';
-import { Card, Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, ProgressBar } from '../../components/ui';
+import { Card, Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, ProgressBar, Alert } from '../../components/ui';
 import { formatCurrency, formatDate, projectStatusColor } from '../../lib/statusColors';
 
 export function ProjectsPage() {
@@ -15,9 +15,13 @@ export function ProjectsPage() {
   }, []);
 
   async function handleCreate(data: { name: string; description: string; budget_total: number }) {
-    const p = await projectsApi.create(data);
-    setProjects(ps => [p, ...ps]);
-    setShowCreate(false);
+    try {
+      const p = await projectsApi.create(data);
+      setProjects(ps => [p, ...ps]);
+      setShowCreate(false);
+    } catch (err) {
+      throw err;
+    }
   }
 
   if (loading) return <Spinner />;
@@ -83,12 +87,17 @@ function CreateProjectModal({ onClose, onCreate }: {
   const [description, setDescription] = useState('');
   const [budget, setBudget] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!name.trim()) return;
+    setError('');
     setSaving(true);
     try {
-      await onCreate({ name, description, budget_total: parseFloat(budget) || 0 });
+      await onCreate({ name: name.trim(), description, budget_total: parseFloat(budget) || 0 });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create project');
     } finally {
       setSaving(false);
     }
@@ -98,10 +107,11 @@ function CreateProjectModal({ onClose, onCreate }: {
     <Modal title="New Project" onClose={onClose} footer={
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Button variant="secondary" onClick={onClose} type="button">Cancel</Button>
-        <Button type="submit" form="create-project-form" disabled={saving || !name}>{saving ? 'Creating…' : 'Create Project'}</Button>
+        <Button type="submit" form="create-project-form" disabled={saving || !name.trim()}>{saving ? 'Creating…' : 'Create Project'}</Button>
       </div>
     }>
       <form id="create-project-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {error && <Alert type="error">{error}</Alert>}
         <FormField label="Project name">
           <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Platform Redesign" required />
         </FormField>
