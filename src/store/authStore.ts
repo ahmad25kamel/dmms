@@ -24,7 +24,7 @@ export function useAuthState(): AuthState {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('dmms_token');
+    const token = sessionStorage.getItem('dmms_token');
     if (!token) {
       setLoading(false);
       return;
