@@ -17,23 +17,40 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-# 2. Extract Port for display
-PORT=$(grep -E "^DMMS_PORT=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-PORT=${PORT:-3005}
+# 2. Validate required variables
+source "$ENV_FILE"
+
+MISSING=()
+[ -z "$DMMS_JWT_SECRET" ] && MISSING+=("DMMS_JWT_SECRET")
+[ -z "$DB_HOST" ]         && MISSING+=("DB_HOST")
+[ -z "$DB_DATABASE" ]     && MISSING+=("DB_DATABASE")
+[ -z "$DB_USERNAME" ]     && MISSING+=("DB_USERNAME")
+[ -z "$DB_PASSWORD" ]     && MISSING+=("DB_PASSWORD")
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+    echo "❌ Deployment aborted — the following required variables are not set in $ENV_FILE:"
+    for var in "${MISSING[@]}"; do
+        echo "   • $var"
+    done
+    exit 1
+fi
+
+# 3. Extract Port for display
+PORT=${DMMS_PORT:-3005}
 
 echo "🚀 Preparing to deploy $APP_NAME as a systemd service..."
 echo "📍 Working Directory: $WORKING_DIR"
 echo "👤 User: $USER"
 echo "🌐 Port: $PORT"
 
-# 3. Build the application (Optional but recommended)
+# 4. Build the application
 echo "📦 Building application artifacts..."
 npm run build
 npm run build:mcp
 echo "🐹 Building Go backend..."
 go build -o dmms-server ./cmd/dmms
 
-# 4. Create the systemd service file
+# 5. Create the systemd service file
 echo "📝 Creating systemd service file at $SERVICE_FILE..."
 sudo bash -c "cat <<EOF > $SERVICE_FILE
 [Unit]
@@ -53,7 +70,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF"
 
-# 5. Reload and start
+# 6. Reload and start
 echo "🔄 Reloading systemd and starting service..."
 sudo systemctl daemon-reload
 sudo systemctl enable $APP_NAME
