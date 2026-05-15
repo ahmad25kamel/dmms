@@ -179,6 +179,17 @@ type CommentMention struct {
 
 func (CommentMention) TableName() string { return "dmms_comment_mentions" }
 
+type Notification struct {
+	ID        string    `json:"id" gorm:"primaryKey;size:191"`
+	UserID    string    `json:"user_id" gorm:"column:user_id;not null;size:191;index"`
+	Kind      string    `json:"kind" gorm:"not null;size:50"`
+	Payload   string    `json:"payload" gorm:"not null;default:'{}'"`
+	Read      bool      `json:"read" gorm:"not null;default:false"`
+	CreatedAt time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
+}
+
+func (Notification) TableName() string { return "dmms_notifications" }
+
 type SubmissionStatus string
 
 const (

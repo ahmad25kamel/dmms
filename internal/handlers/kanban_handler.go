@@ -20,13 +20,14 @@ import (
 var mentionRe = regexp.MustCompile(`@([a-zA-Z0-9_]{3,30})`)
 
 type KanbanHandler struct {
-	tasks  *repository.TaskRepo
-	kanban *repository.KanbanRepo
-	users  *repository.UserRepo
+	tasks         *repository.TaskRepo
+	kanban        *repository.KanbanRepo
+	users         *repository.UserRepo
+	notifications *repository.NotificationRepo
 }
 
-func NewKanbanHandler(tasks *repository.TaskRepo, kanban *repository.KanbanRepo, users *repository.UserRepo) *KanbanHandler {
-	return &KanbanHandler{tasks: tasks, kanban: kanban, users: users}
+func NewKanbanHandler(tasks *repository.TaskRepo, kanban *repository.KanbanRepo, users *repository.UserRepo, notifications *repository.NotificationRepo) *KanbanHandler {
+	return &KanbanHandler{tasks: tasks, kanban: kanban, users: users, notifications: notifications}
 }
 
 type taskListResponse struct {
@@ -195,6 +196,7 @@ func (h *KanbanHandler) Update(w http.ResponseWriter, r *http.Request) {
 		existing.Status = *body.Status
 	}
 	if body.AssignedTo != nil {
+		prevAssignee := existing.AssignedTo
 		existing.AssignedTo = body.AssignedTo
 		// Auto-add newly assigned user to task members
 		if *body.AssignedTo != "" {
@@ -205,6 +207,17 @@ func (h *KanbanHandler) Update(w http.ResponseWriter, r *http.Request) {
 				JoinedAt: time.Now(),
 			}
 			_ = h.kanban.AddMember(m) // INSERT IGNORE — safe to ignore duplicate
+
+			// Notify the newly assigned user if they differ from previous assignee
+			if prevAssignee == nil || *prevAssignee != *body.AssignedTo {
+				payload, _ := json.Marshal(map[string]string{"task_id": id, "task_title": existing.Title})
+				_ = h.notifications.Create(&models.Notification{
+					ID:      uuid.New().String(),
+					UserID:  *body.AssignedTo,
+					Kind:    "task_assigned",
+					Payload: string(payload),
+				})
+			}
 		}
 	}
 	if body.Position != nil {

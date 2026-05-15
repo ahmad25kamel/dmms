@@ -33,6 +33,7 @@ func main() {
 	proposalRepo := repository.NewProposalRepo(db)
 	submissionRepo := repository.NewSubmissionRepo(db)
 	rewardRepo := repository.NewRewardRepo(db)
+	notifRepo := repository.NewNotificationRepo(db)
 
 	// Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
@@ -47,7 +48,7 @@ func main() {
 	marketH := handlers.NewMarketplaceHandler(deliverableRepo)
 	rewardH := handlers.NewRewardHandler(rewardRepo)
 	adminH := handlers.NewAdminHandler(userRepo)
-	kanbanH := handlers.NewKanbanHandler(taskRepo, kanbanRepo, userRepo)
+	kanbanH := handlers.NewKanbanHandler(taskRepo, kanbanRepo, userRepo, notifRepo)
 
 	// Auth middleware
 	authMW := middleware.Auth(authSvc)
@@ -133,6 +134,26 @@ func main() {
 	mux.Handle("POST /api/dmms/kanban/{id}/members", authMW(http.HandlerFunc(kanbanH.JoinTask)))
 	mux.Handle("DELETE /api/dmms/kanban/{id}/members", authMW(http.HandlerFunc(kanbanH.LeaveTask)))
 	mux.Handle("POST /api/dmms/files", authMW(http.HandlerFunc(kanbanH.UploadGeneric)))
+
+	// Notifications
+	mux.Handle("GET /api/dmms/notifications", authMW(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := middleware.GetUserID(r)
+		ns, err := notifRepo.ListForUser(userID)
+		if err != nil {
+			handlers.Err(w, http.StatusInternalServerError, "failed to list notifications")
+			return
+		}
+		handlers.JSON(w, http.StatusOK, ns)
+	})))
+	mux.Handle("PATCH /api/dmms/notifications/{id}/read", authMW(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := middleware.GetUserID(r)
+		id := r.PathValue("id")
+		if err := notifRepo.MarkRead(id, userID); err != nil {
+			handlers.Err(w, http.StatusInternalServerError, "failed to mark notification read")
+			return
+		}
+		handlers.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})))
 
 	// Admin
 	mux.Handle("GET /api/dmms/admin/users", authMW(adminOnly(http.HandlerFunc(adminH.ListUsers))))
