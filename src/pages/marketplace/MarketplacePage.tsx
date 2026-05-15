@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { marketplaceApi, proposalsApi, deliverablesApi } from '../../api';
 import type { Deliverable, Task } from '../../types';
 import { Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, Alert } from '../../components/ui';
-import { formatCurrency, formatDate, deliverableStatusColor } from '../../lib/statusColors';
+import { formatCurrency, formatDate, deliverableStatusColor, deliverableStatusLabel } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
 
 export function MarketplacePage() {
@@ -253,7 +253,7 @@ function BidDetailModal({ deliverable, tasks, userRole, onClose }: {
     }>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Badge color={deliverableStatusColor[deliverable.status]}>{deliverable.status}</Badge>
+          <Badge color={deliverableStatusColor[deliverable.status]}>{deliverableStatusLabel[deliverable.status]}</Badge>
           <span className="meta">Max {formatCurrency(deliverable.max_budget)}</span>
           {deliverable.due_date && <span className="meta">Due {formatDate(deliverable.due_date)}</span>}
         </div>
