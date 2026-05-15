@@ -137,6 +137,9 @@ func main() {
 	mux.Handle("PATCH /api/dmms/admin/users/{id}", authMW(adminOnly(http.HandlerFunc(adminH.UpdateUserRole))))
 	mux.Handle("DELETE /api/dmms/admin/users/{id}", authMW(adminOnly(http.HandlerFunc(adminH.DeleteUser))))
 
+	// Serve uploaded files
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+
 	// SPA fallback
 	fs := http.FileServer(http.Dir("./dist"))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
