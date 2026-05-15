@@ -1,14 +1,16 @@
 #!/bin/bash
 # scripts/deploy-service.sh
-# Deploys DMMS as a systemd service using settings from .env
+# Deploys DMMS as a user-level systemd service (no root required).
+# The service runs under the current user account via systemctl --user.
 
 set -e
 
 APP_NAME="dmms"
 ENV_FILE=".env"
-SERVICE_FILE="/etc/systemd/system/${APP_NAME}.service"
+SERVICE_DIR="$HOME/.config/systemd/user"
+SERVICE_FILE="$SERVICE_DIR/${APP_NAME}.service"
 WORKING_DIR=$(pwd)
-USER=$(whoami)
+CURRENT_USER=$(whoami)
 
 # 1. Check for .env file
 if [ ! -f "$ENV_FILE" ]; then
@@ -35,12 +37,12 @@ if [ ${#MISSING[@]} -gt 0 ]; then
     exit 1
 fi
 
-# 3. Extract Port for display
+# 3. Extract port for display
 PORT=${DMMS_PORT:-3005}
 
-echo "🚀 Preparing to deploy $APP_NAME as a systemd service..."
+echo "🚀 Preparing to deploy $APP_NAME as a user systemd service..."
 echo "📍 Working Directory: $WORKING_DIR"
-echo "👤 User: $USER"
+echo "👤 User: $CURRENT_USER"
 echo "🌐 Port: $PORT"
 
 # 4. Build the application
@@ -51,16 +53,16 @@ npm run build:mcp
 echo "🐹 Building Go backend..."
 go build -o dmms-server ./cmd/dmms
 
-# 5. Create the systemd service file
-echo "📝 Creating systemd service file at $SERVICE_FILE..."
-sudo bash -c "cat <<EOF > $SERVICE_FILE
+# 5. Create user systemd service directory and service file
+echo "📝 Creating user service file at $SERVICE_FILE..."
+mkdir -p "$SERVICE_DIR"
+cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=DMMS - Deliverable Marketplace Management System
 After=network.target
 
 [Service]
 Type=simple
-User=$USER
 WorkingDirectory=$WORKING_DIR
 EnvironmentFile=$WORKING_DIR/$ENV_FILE
 ExecStart=$WORKING_DIR/dmms-server
@@ -68,16 +70,21 @@ Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
-EOF"
+WantedBy=default.target
+EOF
 
-# 6. Reload and start
-echo "🔄 Reloading systemd and starting service..."
-sudo systemctl daemon-reload
-sudo systemctl enable $APP_NAME
-sudo systemctl restart $APP_NAME
+# 6. Enable lingering so the service survives logout
+echo "🔒 Enabling linger for $CURRENT_USER (service persists after logout)..."
+loginctl enable-linger "$CURRENT_USER"
+
+# 7. Reload and start
+echo "🔄 Reloading user systemd and starting service..."
+systemctl --user daemon-reload
+systemctl --user enable "$APP_NAME"
+systemctl --user restart "$APP_NAME"
 
 echo "✅ Deployment successful!"
 echo "📡 Service is now running on port $PORT"
-echo "📊 Check status: sudo systemctl status $APP_NAME"
-echo "📜 View logs: sudo journalctl -u $APP_NAME -f"
+echo "📊 Check status : systemctl --user status $APP_NAME"
+echo "📜 View logs    : journalctl --user -u $APP_NAME -f"
+echo "⏹  Stop service : systemctl --user stop $APP_NAME"
