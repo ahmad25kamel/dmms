@@ -52,3 +52,4 @@ bookmarks-api
 /dmms-server
 /dmms
 uploads/
+.fuse_hidden*
