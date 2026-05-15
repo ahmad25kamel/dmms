@@ -35,8 +35,7 @@ jobs:
         run: |
           ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
             export PATH=$PATH:/usr/local/go/bin
-            cd ~/webserver/dmms/
+            cd ${{ secrets.DEPLOY_PATH }}
             git pull
-            make build
-            sudo systemctl restart dmms.service
+            bash scripts/deploy-service.sh
           EOF
