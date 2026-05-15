@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { deliverablesApi, projectsApi } from '../../api';
 import type { Deliverable, Project, Task } from '../../types';
@@ -9,7 +9,7 @@ import { useAuth } from '../../store/authStore';
 export function DeliverableTreePage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [project, setProject] = useState<Project | null>(null);
-  const [tree, setTree] = useState<Deliverable[]>([]);
+  const [rawTree, setRawTree] = useState<Deliverable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState<string | null>(null);
   const [editDeliverable, setEditDeliverable] = useState<Deliverable | null>(null);
@@ -19,25 +19,23 @@ export function DeliverableTreePage() {
   const reload = useCallback(() => {
     if (!projectId) return;
     Promise.all([projectsApi.get(projectId), deliverablesApi.tree(projectId)])
-      .then(([p, t]) => {
-        setProject(p);
-        const sortTree = (nodes: Deliverable[]): Deliverable[] => {
-          return nodes.map(n => ({
-            ...n,
-            children: n.children ? sortTree(n.children) : []
-          })).sort((a, b) => {
-            const s1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
-            const s2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
-            if (s1 !== s2) return s1 - s2;
-            const e1 = a.due_date ? new Date(a.due_date).getTime() : -Infinity;
-            const e2 = b.due_date ? new Date(b.due_date).getTime() : -Infinity;
-            return e2 - e1;
-          });
-        };
-        setTree(sortTree(t));
-      })
+      .then(([p, t]) => { setProject(p); setRawTree(t); })
       .finally(() => setLoading(false));
   }, [projectId]);
+
+  const tree = useMemo(() => {
+    const sortTree = (nodes: Deliverable[]): Deliverable[] =>
+      nodes.map(n => ({ ...n, children: n.children ? sortTree(n.children) : [] }))
+        .sort((a, b) => {
+          const s1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
+          const s2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
+          if (s1 !== s2) return s1 - s2;
+          const e1 = a.due_date ? new Date(a.due_date).getTime() : -Infinity;
+          const e2 = b.due_date ? new Date(b.due_date).getTime() : -Infinity;
+          return e2 - e1;
+        });
+    return sortTree(rawTree);
+  }, [rawTree]);
 
   useEffect(() => { reload(); }, [reload]);
 
