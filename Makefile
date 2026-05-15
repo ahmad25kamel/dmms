@@ -1,6 +1,6 @@
-.PHONY: build clean run-dev run-prod
+.PHONY: build clean dev-backend dev-frontend tidy run
 
-# Build the production application
+# Full production build: frontend + MCP server + Go binary
 build:
 	@echo "Building frontend..."
 	npm run build
@@ -9,22 +9,22 @@ build:
 	@echo "Tidying Go modules..."
 	go mod tidy
 	@echo "Building Go binary..."
-	go build -ldflags="-s -w" -o finance-game main.go
-	@echo "Build complete! Run ./finance-game to start."
+	go build -ldflags="-s -w" -o dmms-server ./cmd/dmms
+	@echo "Build complete. Run: source .env.dmms && ./dmms-server"
 
-# Clean up build artifacts
+# Remove build artifacts
 clean:
-	rm -rf out
-	rm -f finance-game
+	rm -f dmms-server
+	rm -rf dist dist-mcp
 
-# Run in development mode
-run-dev:
-	go run main.go
+# Run Go backend in development mode (requires .env.dmms to be sourced)
+dev-backend:
+	go run ./cmd/dmms
 
-# Run the production binary
-run-prod: build
-	./finance-game
+# Run Vite frontend dev server
+dev-frontend:
+	npm run dev
 
-# Reset all game data points
-reset:
-	go run main.go --reset
+# Tidy Go modules
+tidy:
+	go mod tidy
