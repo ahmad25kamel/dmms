@@ -14,11 +14,12 @@ import (
 type ProposalHandler struct {
 	proposals    *repository.ProposalRepo
 	deliverables *repository.DeliverableRepo
+	projects     *repository.ProjectRepo
 	delivSvc     *service.DeliverableService
 }
 
-func NewProposalHandler(proposals *repository.ProposalRepo, deliverables *repository.DeliverableRepo, delivSvc *service.DeliverableService) *ProposalHandler {
-	return &ProposalHandler{proposals: proposals, deliverables: deliverables, delivSvc: delivSvc}
+func NewProposalHandler(proposals *repository.ProposalRepo, deliverables *repository.DeliverableRepo, projects *repository.ProjectRepo, delivSvc *service.DeliverableService) *ProposalHandler {
+	return &ProposalHandler{proposals: proposals, deliverables: deliverables, projects: projects, delivSvc: delivSvc}
 }
 
 func (h *ProposalHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +59,15 @@ func (h *ProposalHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 	if d.Status != models.DelivOpenForBids {
 		Err(w, http.StatusBadRequest, "deliverable is not open for bids")
+		return
+	}
+	proj, err := h.projects.FindByID(d.ProjectID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to load project")
+		return
+	}
+	if proj.PMID == contributorID {
+		Err(w, http.StatusForbidden, "PM cannot submit a proposal on their own project's deliverable")
 		return
 	}
 
@@ -154,12 +164,27 @@ func (h *ProposalHandler) Accept(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProposalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	callerID := middleware.GetUserID(r)
+
 	proposal, err := h.proposals.FindByID(id)
 	if err != nil {
 		Err(w, http.StatusNotFound, "proposal not found")
 		return
 	}
-	_ = proposal
+	d, err := h.deliverables.FindByID(proposal.DeliverableID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to load deliverable")
+		return
+	}
+	proj, err := h.projects.FindByID(d.ProjectID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to load project")
+		return
+	}
+	if proj.PMID != callerID {
+		Err(w, http.StatusForbidden, "you are not the PM of this project")
+		return
+	}
 	if err := h.proposals.UpdateStatus(id, models.ProposalRejected); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to reject")
 		return

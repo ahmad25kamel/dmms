@@ -42,7 +42,7 @@ func main() {
 	authH := handlers.NewAuthHandler(authSvc, userRepo)
 	projectH := handlers.NewProjectHandler(projectRepo)
 	delivH := handlers.NewDeliverableHandler(deliverableRepo, taskRepo, delivSvc, projectRepo)
-	proposalH := handlers.NewProposalHandler(proposalRepo, deliverableRepo, delivSvc)
+	proposalH := handlers.NewProposalHandler(proposalRepo, deliverableRepo, projectRepo, delivSvc)
 	submissionH := handlers.NewSubmissionHandler(submissionRepo, deliverableRepo, taskRepo, delivSvc)
 	marketH := handlers.NewMarketplaceHandler(deliverableRepo)
 	rewardH := handlers.NewRewardHandler(rewardRepo)
