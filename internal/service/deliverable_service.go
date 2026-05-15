@@ -52,7 +52,7 @@ func (s *DeliverableService) SyncBudget(projectID string) error {
 }
 
 // OpenForBids transitions a deliverable to open_for_bids.
-// Blocked if any child is assigned (parent bidding must remain blocked).
+// Blocked if any child is assigned or if a dependency is not yet approved.
 func (s *DeliverableService) OpenForBids(id string) error {
 	d, err := s.deliverables.FindByID(id)
 	if err != nil {
@@ -67,6 +67,15 @@ func (s *DeliverableService) OpenForBids(id string) error {
 	}
 	if hasAssigned {
 		return fmt.Errorf("cannot open for bids: a child deliverable is already assigned")
+	}
+	if d.DependencyID != nil {
+		dep, err := s.deliverables.FindByID(*d.DependencyID)
+		if err != nil {
+			return fmt.Errorf("dependency deliverable not found")
+		}
+		if dep.Status != models.DelivApproved {
+			return fmt.Errorf("dependency deliverable must be approved before opening this one for bids")
+		}
 	}
 	return s.deliverables.UpdateStatus(id, models.DelivOpenForBids)
 }
