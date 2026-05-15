@@ -66,9 +66,13 @@ export function ProjectsPage() {
                     <Badge color={projectStatusColor[p.status]}>{p.status}</Badge>
                   </div>
                   {p.description && <p className="body-sm" style={{ marginBottom: 10 }}>{p.description}</p>}
-                  <ProgressBar value={p.budget_allocated} max={p.budget_total} />
+                  <ProgressBar value={p.budget_allocated} max={p.budget_ceiling || p.budget_total} />
+                  {p.budget_ceiling > 0 && p.budget_total > p.budget_ceiling && (
+                    <p style={{ color: 'var(--rose)', fontSize: 12, marginTop: 4 }}>⚠ Computed total exceeds ceiling ({formatCurrency(p.budget_total)} &gt; {formatCurrency(p.budget_ceiling)})</p>
+                  )}
                   <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
-                    <span className="meta">Total <strong style={{ color: 'var(--fg-1)' }}>{formatCurrency(p.budget_total)}</strong></span>
+                    {p.budget_ceiling > 0 && <span className="meta">Ceiling <strong style={{ color: 'var(--fg-1)' }}>{formatCurrency(p.budget_ceiling)}</strong></span>}
+                    <span className="meta">Computed <strong style={{ color: 'var(--fg-1)' }}>{formatCurrency(p.budget_total)}</strong></span>
                     <span className="meta">Allocated <strong style={{ color: 'var(--fg-1)' }}>{formatCurrency(p.budget_allocated)}</strong></span>
                     <span className="meta">Saved <strong style={{ color: 'var(--emerald)' }}>{formatCurrency(p.budget_saved)}</strong></span>
                     <span className="meta">End {formatDate(p.end_date)}</span>

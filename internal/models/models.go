@@ -39,6 +39,7 @@ type Project struct {
 	Name             string        `json:"name" gorm:"not null"`
 	Description      string        `json:"description"`
 	PMID             string        `json:"pm_id" gorm:"column:pm_id;not null;size:191"`
+	BudgetCeiling    float64       `json:"budget_ceiling" gorm:"column:budget_ceiling;not null;default:0"`
 	BudgetTotal      float64       `json:"budget_total" gorm:"column:budget_total;not null;default:0"`
 	BudgetAllocated  float64       `json:"budget_allocated" gorm:"column:budget_allocated;not null;default:0"`
 	BudgetSaved      float64       `json:"budget_saved" gorm:"column:budget_saved;not null;default:0"`

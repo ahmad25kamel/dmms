@@ -16,6 +16,7 @@ export interface Project {
   name: string;
   description: string;
   pm_id: string;
+  budget_ceiling: number;
   budget_total: number;
   budget_allocated: number;
   budget_saved: number;

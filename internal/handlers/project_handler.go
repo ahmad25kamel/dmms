@@ -62,12 +62,12 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := &models.Project{
-		ID:          uuid.New().String(),
-		Name:        body.Name,
-		Description: body.Description,
-		PMID:        middleware.GetUserID(r),
-		BudgetTotal: body.BudgetTotal,
-		Status:      models.ProjectDraft,
+		ID:            uuid.New().String(),
+		Name:          body.Name,
+		Description:   body.Description,
+		PMID:          middleware.GetUserID(r),
+		BudgetCeiling: body.BudgetTotal,
+		Status:        models.ProjectDraft,
 	}
 	if err := h.projects.Create(p); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to create project")
@@ -113,7 +113,7 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Description = body.Description
 	if body.BudgetTotal > 0 {
-		p.BudgetTotal = body.BudgetTotal
+		p.BudgetCeiling = body.BudgetTotal
 	}
 	if body.Status != "" {
 		p.Status = body.Status
