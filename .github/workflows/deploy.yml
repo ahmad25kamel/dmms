@@ -8,17 +8,22 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: RaspberrryProd
+    environment: RaspberryProd
     steps:
       - name: Validate secrets
+        env:
+          _SSH_KEY:      ${{ secrets.SSH_KEY }}
+          _SSH_HOST:     ${{ secrets.SSH_HOST }}
+          _SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          _DEPLOY_PATH:  ${{ secrets.DEPLOY_PATH }}
         run: |
           MISSING=()
-          [ -z "${{ secrets.SSH_KEY }}"      ] && MISSING+=("SSH_KEY")
-          [ -z "${{ secrets.SSH_HOST }}"     ] && MISSING+=("SSH_HOST")
-          [ -z "${{ secrets.SSH_USERNAME }}" ] && MISSING+=("SSH_USERNAME")
-          [ -z "${{ secrets.DEPLOY_PATH }}"  ] && MISSING+=("DEPLOY_PATH")
+          [ -z "$_SSH_KEY"      ] && MISSING+=("SSH_KEY")
+          [ -z "$_SSH_HOST"     ] && MISSING+=("SSH_HOST")
+          [ -z "$_SSH_USERNAME" ] && MISSING+=("SSH_USERNAME")
+          [ -z "$_DEPLOY_PATH"  ] && MISSING+=("DEPLOY_PATH")
           if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "❌ Deployment aborted — the following secrets are not set in the RaspberrryProd environment:"
+            echo "❌ Deployment aborted — the following secrets are not set in the RaspberryProd environment:"
             for s in "${MISSING[@]}"; do echo "   • $s"; done
             exit 1
           fi
