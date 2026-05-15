@@ -1,4 +1,4 @@
-import React, { type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from 'react';
+import React, { type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, useState, useCallback, createContext, useContext } from 'react';
 
 // ── Button ────────────────────────────────────────────────────────────────────
 type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -176,4 +176,55 @@ export function ProgressBar({ value, max, color }: { value: number; max: number;
 export function Alert({ type = 'info', children }: { type?: 'info' | 'success' | 'warn' | 'error'; children: ReactNode }) {
   const cls = { info: 'dmms-alert-info', success: 'dmms-alert-success', warn: 'dmms-alert-warn', error: 'dmms-alert-error' }[type];
   return <div className={`dmms-alert ${cls}`}>{children}</div>;
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+interface Toast { id: number; message: string; type: 'success' | 'error' | 'info'; }
+interface ToastCtx { toast: (message: string, type?: Toast['type']) => void; }
+
+const ToastContext = createContext<ToastCtx>({ toast: () => {} });
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  let nextId = 0;
+
+  const toast = useCallback((message: string, type: Toast['type'] = 'success') => {
+    const id = ++nextId;
+    setToasts(ts => [...ts, { id, message, type }]);
+    setTimeout(() => setToasts(ts => ts.filter(t => t.id !== id)), 3500);
+  }, []);
+
+  const colors: Record<Toast['type'], string> = {
+    success: '#22c55e',
+    error: '#ef4444',
+    info: 'var(--kamel-blue)',
+  };
+
+  return (
+    <ToastContext.Provider value={{ toast }}>
+      {children}
+      <div style={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 9999 }}>
+        {toasts.map(t => (
+          <div key={t.id} style={{
+            background: 'var(--surface-1)',
+            border: `1px solid ${colors[t.type]}`,
+            borderLeft: `4px solid ${colors[t.type]}`,
+            borderRadius: 'var(--radius-sm)',
+            padding: '10px 16px',
+            fontSize: 13,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            minWidth: 240,
+            maxWidth: 380,
+            animation: 'fadeIn 0.2s ease',
+          }}>
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast(): ToastCtx {
+  return useContext(ToastContext);
 }

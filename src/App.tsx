@@ -17,7 +17,7 @@ import { LedgerPage } from './pages/ledger/LedgerPage';
 import { BudgetPage } from './pages/budget/BudgetPage';
 import { AdminPage } from './pages/admin/AdminPage';
 import { KanbanPage } from './pages/kanban/KanbanPage';
-import { Spinner } from './components/ui';
+import { Spinner, ToastProvider } from './components/ui';
 import type { ReactNode } from 'react';
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -65,9 +65,11 @@ export default function App() {
   const authState = useAuthState();
   return (
     <AuthContext.Provider value={authState}>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ToastProvider>
     </AuthContext.Provider>
   );
 }

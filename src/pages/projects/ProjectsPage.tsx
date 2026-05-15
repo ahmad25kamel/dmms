@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '../../api';
 import type { Project } from '../../types';
-import { Card, Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, ProgressBar, Alert } from '../../components/ui';
+import { Card, Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, ProgressBar, Alert, useToast } from '../../components/ui';
 import { formatCurrency, formatDate, projectStatusColor } from '../../lib/statusColors';
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     projectsApi.list().then(setProjects).finally(() => setLoading(false));
@@ -19,6 +20,7 @@ export function ProjectsPage() {
       const p = await projectsApi.create(data);
       setProjects(ps => [p, ...ps]);
       setShowCreate(false);
+      toast('Project created successfully');
     } catch (err) {
       throw err;
     }
