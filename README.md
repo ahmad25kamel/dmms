@@ -117,6 +117,65 @@ The server listens on `DMMS_PORT` (default `3005`) and serves both the API at `/
 
 ---
 
+## Apache Reverse Proxy (Optional)
+
+To expose DMMS behind Apache with HTTPS, enable the required modules and create a virtual host config.
+
+### 1. Enable modules
+
+```bash
+sudo a2enmod proxy proxy_http headers ssl
+sudo systemctl restart apache2
+```
+
+### 2. Create virtual host
+
+Create `/etc/apache2/sites-available/dmms.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName dmms.yourdomain.com
+    Redirect permanent / https://dmms.yourdomain.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName dmms.yourdomain.com
+
+    SSLEngine on
+    SSLCertificateFile     /etc/letsencrypt/live/dmms.yourdomain.com/fullchain.pem
+    SSLCertificateKeyFile  /etc/letsencrypt/live/dmms.yourdomain.com/privkey.pem
+
+    # Proxy everything to the single DMMS binary
+    ProxyPreserveHost On
+    ProxyPass        / http://localhost:3005/
+    ProxyPassReverse / http://localhost:3005/
+
+    # Security headers
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    ErrorLog  /var/log/apache2/dmms-error.log
+    CustomLog /var/log/apache2/dmms-access.log combined
+</VirtualHost>
+```
+
+### 3. Enable and reload
+
+```bash
+sudo a2ensite dmms.conf
+sudo apache2ctl configtest     # verify syntax before reloading
+sudo systemctl reload apache2
+```
+
+> **SSL certificates:** if you don't have one yet, use [Certbot](https://certbot.eff.org/):
+> ```bash
+> sudo certbot --apache -d dmms.yourdomain.com
+> ```
+
+---
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
