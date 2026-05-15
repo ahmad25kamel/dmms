@@ -525,14 +525,16 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
                       borderRight: '1px solid var(--border-1)'
                     }}>
                       {hasChildren ? (
-                        <button 
+                        <button
                           onClick={() => toggleCollapse(d.id)}
-                          style={{ 
-                            background: 'none', 
-                            border: 'none', 
-                            padding: 0, 
-                            cursor: 'pointer', 
-                            display: 'flex', 
+                          aria-label={collapsed.has(d.id) ? `Expand ${d.title}` : `Collapse ${d.title}`}
+                          aria-expanded={!collapsed.has(d.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            display: 'flex',
                             alignItems: 'center',
                             color: 'var(--fg-3)',
                             transform: collapsed.has(d.id) ? 'rotate(-90deg)' : 'none',
