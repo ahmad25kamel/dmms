@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { proposalsApi, deliverablesApi } from '../../api';
 import type { Proposal, Deliverable } from '../../types';
-import { Badge, Button, Spinner, EmptyState } from '../../components/ui';
+import { Badge, Button, Spinner, EmptyState, Modal } from '../../components/ui';
 import { formatCurrency, formatDate, proposalStatusColor } from '../../lib/statusColors';
 
 export function ProposalReviewPage() {
@@ -11,6 +11,9 @@ export function ProposalReviewPage() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  const [pendingAcceptId, setPendingAcceptId] = useState<string | null>(null);
+
+  const childCount = deliverable?.children?.length ?? 0;
 
   useEffect(() => {
     if (!deliverableId) return;
@@ -19,7 +22,16 @@ export function ProposalReviewPage() {
       .finally(() => setLoading(false));
   }, [deliverableId]);
 
-  async function accept(id: string) {
+  function tryAccept(id: string) {
+    if (childCount > 0) {
+      setPendingAcceptId(id);
+    } else {
+      doAccept(id);
+    }
+  }
+
+  async function doAccept(id: string) {
+    setPendingAcceptId(null);
     setActing(true);
     try {
       await proposalsApi.accept(id);
@@ -71,7 +83,7 @@ export function ProposalReviewPage() {
               </div>
               {p.status === 'pending' && (
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <Button size="sm" onClick={() => accept(p.id)} disabled={acting}>Accept</Button>
+                  <Button size="sm" onClick={() => tryAccept(p.id)} disabled={acting}>Accept</Button>
                   <Button size="sm" variant="secondary" onClick={() => reject(p.id)} disabled={acting}>Reject</Button>
                 </div>
               )}
@@ -79,6 +91,16 @@ export function ProposalReviewPage() {
           ))}
         </ul>
       )}
+    {pendingAcceptId && (
+      <Modal title="Accept proposal?" onClose={() => setPendingAcceptId(null)} footer={
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={() => setPendingAcceptId(null)}>Cancel</Button>
+          <Button onClick={() => doAccept(pendingAcceptId)}>Accept Anyway</Button>
+        </div>
+      }>
+        <p>This deliverable has <strong>{childCount}</strong> child deliverable{childCount !== 1 ? 's' : ''}. Accepting this proposal will also assign them all to the same contributor without a separate bidding process.</p>
+      </Modal>
+    )}
     </div>
   );
 }
