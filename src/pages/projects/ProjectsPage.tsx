@@ -5,26 +5,38 @@ import type { Project } from '../../types';
 import { Card, Badge, Button, Modal, FormField, Input, Textarea, Spinner, EmptyState, ProgressBar, Alert, useToast } from '../../components/ui';
 import { formatCurrency, formatDate, projectStatusColor } from '../../lib/statusColors';
 
+const PAGE_SIZE = 20;
+
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    projectsApi.list().then(setProjects).finally(() => setLoading(false));
-  }, []);
+  function load(p: number) {
+    setLoading(true);
+    projectsApi.list(PAGE_SIZE, p * PAGE_SIZE)
+      .then(res => { setProjects(res.items); setTotal(res.total); setPage(p); })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(0); }, []);
 
   async function handleCreate(data: { name: string; description: string; budget_total: number }) {
     try {
       const p = await projectsApi.create(data);
       setProjects(ps => [p, ...ps]);
+      setTotal(t => t + 1);
       setShowCreate(false);
       toast('Project created successfully');
     } catch (err) {
       throw err;
     }
   }
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   if (loading) return <Spinner />;
 
@@ -33,7 +45,7 @@ export function ProjectsPage() {
       <div className="dmms-page-head">
         <div>
           <h1>Projects</h1>
-          <p className="dmms-page-sub">{projects.length} project{projects.length !== 1 ? 's' : ''}</p>
+          <p className="dmms-page-sub">{total} project{total !== 1 ? 's' : ''}</p>
         </div>
         <Button onClick={() => setShowCreate(true)}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -71,6 +83,14 @@ export function ProjectsPage() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
+          <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => load(page - 1)}>← Prev</Button>
+          <span style={{ lineHeight: '30px', fontSize: 13 }}>{page + 1} / {totalPages}</span>
+          <Button variant="secondary" size="sm" disabled={page >= totalPages - 1} onClick={() => load(page + 1)}>Next →</Button>
         </div>
       )}
 

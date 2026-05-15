@@ -19,7 +19,7 @@ export const usersApi = {
 
 // Projects
 export const projectsApi = {
-  list: () => api.get<Project[]>('/projects'),
+  list: (limit = 20, offset = 0) => api.get<{ items: Project[]; total: number; limit: number; offset: number }>(`/projects?limit=${limit}&offset=${offset}`),
   get: (id: string) => api.get<Project>(`/projects/${id}`),
   create: (body: Partial<Project>) => api.post<Project>('/projects', body),
   update: (id: string, body: Partial<Project>) => api.patch<Project>(`/projects/${id}`, body),
@@ -126,7 +126,7 @@ export const kanbanApi = {
 
 // Admin
 export const adminApi = {
-  listUsers: () => api.get<User[]>('/admin/users'),
+  listUsers: (limit = 20, offset = 0) => api.get<{ items: User[]; total: number; limit: number; offset: number }>(`/admin/users?limit=${limit}&offset=${offset}`),
   updateRole: (id: string, role: string) => api.patch<{ updated: boolean }>(`/admin/users/${id}`, { role }),
   deleteUser: (id: string) => api.delete<{ deleted: boolean }>(`/admin/users/${id}`),
 };

@@ -64,7 +64,7 @@ function PMKanban() {
   const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
-    projectsApi.list().then(setProjects);
+    projectsApi.list().then(res => setProjects(res.items));
     usersApi.list().then(setUsers);
   }, []);
 
@@ -197,7 +197,7 @@ function ContributorKanban() {
   const [resetKey] = useState(0);
 
   useEffect(() => {
-    projectsApi.list().then(setProjects);
+    projectsApi.list().then(res => setProjects(res.items));
     usersApi.list().then(setUsers);
   }, []);
 

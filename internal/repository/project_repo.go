@@ -42,12 +42,40 @@ func (r *ProjectRepo) ListByPM(pmID string) ([]*models.Project, error) {
 	return projects, nil
 }
 
+func (r *ProjectRepo) ListByPMPaged(pmID string, limit, offset int) ([]*models.Project, int64, error) {
+	var projects []*models.Project
+	var total int64
+	q := r.db.Model(&models.Project{}).Where("pm_id = ?", pmID)
+	q.Count(&total)
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	if err := q.Order("created_at DESC").Find(&projects).Error; err != nil {
+		return nil, 0, err
+	}
+	return projects, total, nil
+}
+
 func (r *ProjectRepo) ListAll() ([]*models.Project, error) {
 	var projects []*models.Project
 	if err := r.db.Order("created_at DESC").Find(&projects).Error; err != nil {
 		return nil, err
 	}
 	return projects, nil
+}
+
+func (r *ProjectRepo) ListAllPaged(limit, offset int) ([]*models.Project, int64, error) {
+	var projects []*models.Project
+	var total int64
+	q := r.db.Model(&models.Project{})
+	q.Count(&total)
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	if err := q.Order("created_at DESC").Find(&projects).Error; err != nil {
+		return nil, 0, err
+	}
+	return projects, total, nil
 }
 
 func (r *ProjectRepo) Update(p *models.Project) error {

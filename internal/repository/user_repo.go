@@ -65,6 +65,20 @@ func (r *UserRepo) List() ([]*models.User, error) {
 	return users, nil
 }
 
+func (r *UserRepo) ListPaged(limit, offset int) ([]*models.User, int64, error) {
+	var users []*models.User
+	var total int64
+	q := r.db.Model(&models.User{})
+	q.Count(&total)
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	if err := q.Order("created_at DESC").Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
+}
+
 func (r *UserRepo) UpdateRole(id string, role models.Role) error {
 	return r.db.Model(&models.User{}).Where("id = ?", id).Update("role", role).Error
 }

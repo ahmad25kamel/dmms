@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"dmms/internal/middleware"
@@ -22,12 +23,19 @@ func NewProjectHandler(projects *repository.ProjectRepo) *ProjectHandler {
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	role := middleware.GetRole(r)
 	userID := middleware.GetUserID(r)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 {
+		limit = 20
+	}
+
 	var projects []*models.Project
+	var total int64
 	var err error
 	if role == models.RoleAdmin {
-		projects, err = h.projects.ListAll()
+		projects, total, err = h.projects.ListAllPaged(limit, offset)
 	} else {
-		projects, err = h.projects.ListByPM(userID)
+		projects, total, err = h.projects.ListByPMPaged(userID, limit, offset)
 	}
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to list projects")
@@ -36,7 +44,7 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	if projects == nil {
 		projects = []*models.Project{}
 	}
-	JSON(w, http.StatusOK, projects)
+	JSON(w, http.StatusOK, map[string]any{"items": projects, "total": total, "limit": limit, "offset": offset})
 }
 
 func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {

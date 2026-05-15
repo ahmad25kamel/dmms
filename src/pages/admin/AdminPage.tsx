@@ -4,16 +4,25 @@ import type { User } from '../../types';
 import { Badge, Button, Select, Spinner, EmptyState, Modal } from '../../components/ui';
 import { formatDate } from '../../lib/statusColors';
 
+const PAGE_SIZE = 20;
+
 export function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [newRole, setNewRole] = useState('');
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    adminApi.listUsers().then(setUsers).finally(() => setLoading(false));
-  }, []);
+  function load(p: number) {
+    setLoading(true);
+    adminApi.listUsers(PAGE_SIZE, p * PAGE_SIZE)
+      .then(res => { setUsers(res.items); setTotal(res.total); setPage(p); })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(0); }, []);
 
   async function updateRole() {
     if (!editUser) return;
@@ -26,8 +35,11 @@ export function AdminPage() {
     if (!confirmDeleteUser) return;
     await adminApi.deleteUser(confirmDeleteUser.id);
     setUsers(us => us.filter(u => u.id !== confirmDeleteUser.id));
+    setTotal(t => t - 1);
     setConfirmDeleteUser(null);
   }
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   if (loading) return <Spinner />;
 
@@ -36,7 +48,7 @@ export function AdminPage() {
       <div className="dmms-page-head">
         <div>
           <h1>Admin</h1>
-          <p className="dmms-page-sub">{users.length} users</p>
+          <p className="dmms-page-sub">{total} users</p>
         </div>
       </div>
 
@@ -62,6 +74,14 @@ export function AdminPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
+          <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => load(page - 1)}>← Prev</Button>
+          <span style={{ lineHeight: '30px', fontSize: 13 }}>{page + 1} / {totalPages}</span>
+          <Button variant="secondary" size="sm" disabled={page >= totalPages - 1} onClick={() => load(page + 1)}>Next →</Button>
+        </div>
       )}
 
       {confirmDeleteUser && (

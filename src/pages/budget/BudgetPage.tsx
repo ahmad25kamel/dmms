@@ -9,7 +9,7 @@ export function BudgetPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    projectsApi.list().then(setProjects).finally(() => setLoading(false));
+    projectsApi.list().then(res => setProjects(res.items)).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Spinner />;

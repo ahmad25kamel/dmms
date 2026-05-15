@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"dmms/internal/models"
 	"dmms/internal/repository"
@@ -16,7 +17,12 @@ func NewAdminHandler(users *repository.UserRepo) *AdminHandler {
 }
 
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := h.users.List()
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 {
+		limit = 20
+	}
+	users, total, err := h.users.ListPaged(limit, offset)
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to list users")
 		return
@@ -24,7 +30,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	if users == nil {
 		users = []*models.User{}
 	}
-	JSON(w, http.StatusOK, users)
+	JSON(w, http.StatusOK, map[string]any{"items": users, "total": total, "limit": limit, "offset": offset})
 }
 
 func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {

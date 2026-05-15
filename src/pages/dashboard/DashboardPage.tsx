@@ -19,7 +19,7 @@ function PMDashboard() {
 
   useEffect(() => {
     Promise.all([projectsApi.list(), submissionsApi.pending()])
-      .then(([p, s]) => { setProjects(p); setPending(s); })
+      .then(([p, s]) => { setProjects(p.items); setPending(s); })
       .finally(() => setLoading(false));
   }, []);
 
