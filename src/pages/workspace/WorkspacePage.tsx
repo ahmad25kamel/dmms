@@ -10,23 +10,25 @@ export function WorkspacePage() {
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [subtasks, setSubtasks] = useState<Task[]>([]); // Unified type
-  const [submission, setSubmission] = useState<Submission | null>(null);
+  const [, setSubmission] = useState<Submission | null>(null);
+  const [submissionHistory, setSubmissionHistory] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
 
   async function load() {
     if (!id) return;
     try {
-      const [d, t, s, sub] = await Promise.all([
+      const [d, t, s, history] = await Promise.all([
         deliverablesApi.get(id),
         deliverablesApi.listTasks(id),
         deliverablesApi.listSubtasks(id),
-        deliverablesApi.getSubmission(id).catch(() => null),
+        deliverablesApi.listHistory(id).catch(() => [] as Submission[]),
       ]);
       setDeliverable(d);
       setTasks(t);
       setSubtasks(s);
-      setSubmission(sub);
+      setSubmissionHistory(history);
+      setSubmission(history.length > 0 ? history[history.length - 1] : null);
     } finally {
       setLoading(false);
     }
@@ -109,15 +111,23 @@ export function WorkspacePage() {
         <AddSubtaskInput onAdd={addSubtask} />
       </Card>
 
-      {submission ? (
+      {submissionHistory.length > 0 ? (
         <Card>
-          <p style={{ fontWeight: 600, fontSize: 13 }}>Submission — <span style={{ textTransform: 'capitalize' }}>{submission.status}</span></p>
-          <p className="body-sm" style={{ marginTop: 4 }}>{submission.notes}</p>
-          {submission.review_notes && (
-            <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--amber-soft)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: '#92400E' }}>
-              <strong>PM Feedback:</strong> {submission.review_notes}
+          <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Submission History ({submissionHistory.length})</p>
+          {[...submissionHistory].reverse().map((sub, i) => (
+            <div key={sub.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined, paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontWeight: 500, fontSize: 12, textTransform: 'capitalize' }}>{sub.status}</span>
+                <span className="meta">{formatDate(sub.submitted_at)}</span>
+              </div>
+              {sub.notes && <p className="body-sm">{sub.notes}</p>}
+              {sub.review_notes && (
+                <div style={{ marginTop: 6, padding: '8px 10px', background: 'var(--amber-soft)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: '#92400E' }}>
+                  <strong>PM Feedback:</strong> {sub.review_notes}
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </Card>
       ) : (
         deliverable.status !== 'approved' && deliverable.status !== 'cancelled' && deliverable.status !== 'rejected' && (
@@ -133,7 +143,7 @@ export function WorkspacePage() {
           deliverableId={id!}
           tasks={tasks}
           onClose={() => setShowSubmit(false)}
-          onSubmitted={(s) => { setSubmission(s); setShowSubmit(false); }}
+          onSubmitted={(s) => { setSubmission(s); setSubmissionHistory(h => [...h, s]); setShowSubmit(false); }}
         />
       )}
     </div>
