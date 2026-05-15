@@ -10,6 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: RaspberrryProd
     steps:
+      - name: Validate secrets
+        run: |
+          MISSING=()
+          [ -z "${{ secrets.SSH_KEY }}"      ] && MISSING+=("SSH_KEY")
+          [ -z "${{ secrets.SSH_HOST }}"     ] && MISSING+=("SSH_HOST")
+          [ -z "${{ secrets.SSH_USERNAME }}" ] && MISSING+=("SSH_USERNAME")
+          [ -z "${{ secrets.DEPLOY_PATH }}"  ] && MISSING+=("DEPLOY_PATH")
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "❌ Deployment aborted — the following secrets are not set in the RaspberrryProd environment:"
+            for s in "${MISSING[@]}"; do echo "   • $s"; done
+            exit 1
+          fi
+          echo "✅ All required secrets are present."
+
       - name: Checkout code
         uses: actions/checkout@v4
 
