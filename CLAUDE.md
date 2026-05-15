@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Available Skills
+
+- **dmms** (`.claude/skills/dmms/SKILL.md`) - manage DMMS projects, deliverables, tasks, kanban, proposals and approvals via MCP tools. Trigger: `/dmms`
+When the user types `/dmms`, invoke the Skill tool with `skill: "dmms"` before doing anything else.
+
 ## Project Overview
 
 DMMS (Deliverable Modular Management System) — a SaaS platform where PMs break work into recursive deliverable trees, Contributors bid on items, and approvals trigger automatic reward ledger entries.
