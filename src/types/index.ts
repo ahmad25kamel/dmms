@@ -78,9 +78,11 @@ export interface Task {
   // Enriched fields
   project_name?: string;
   deliverable_title?: string;
+  deliverable_due_date?: string | null;
   assigned_to_name?: string;
   created_by_name?: string;
   comment_count?: number;
+  members?: { id: string; task_id: string; user_id: string; user_name: string; joined_at: string }[];
 }
 
 // Subtask is now part of Task (is_required: false)

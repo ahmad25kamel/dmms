@@ -112,12 +112,12 @@ export function Badge({ children, color = 'gray', dot = false }: { children: Rea
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
-export function Modal({ title, subtitle, children, onClose, footer }: {
-  title: string; subtitle?: string; children: ReactNode; onClose: () => void; footer?: ReactNode;
+export function Modal({ title, subtitle, children, onClose, footer, size = 'md' }: {
+  title: string; subtitle?: string; children: ReactNode; onClose: () => void; footer?: ReactNode; size?: 'md' | 'lg' | 'xl';
 }) {
   return (
     <div className="dmms-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dmms-modal">
+      <div className={`dmms-modal${size === 'lg' ? ' dmms-modal--lg' : size === 'xl' ? ' dmms-modal--xl' : ''}`}>
         <div className="dmms-modal-head">
           <div>
             <h2>{title}</h2>

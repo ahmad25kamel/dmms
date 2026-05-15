@@ -100,7 +100,7 @@ export const kanbanApi = {
     if (params?.limit) q.set('limit', params.limit.toString());
     if (params?.offset) q.set('offset', params.offset.toString());
     const qs = q.toString();
-    return api.get<KanbanTask[]>(`/kanban${qs ? '?' + qs : ''}`);
+    return api.get<{ items: KanbanTask[]; total: number }>(`/kanban${qs ? '?' + qs : ''}`);
   },
   mine: (params?: { status?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
@@ -108,7 +108,7 @@ export const kanbanApi = {
     if (params?.limit) q.set('limit', params.limit.toString());
     if (params?.offset) q.set('offset', params.offset.toString());
     const qs = q.toString();
-    return api.get<KanbanTask[]>(`/kanban/mine${qs ? '?' + qs : ''}`);
+    return api.get<{ items: KanbanTask[]; total: number }>(`/kanban/mine${qs ? '?' + qs : ''}`);
   },
   create: (body: Partial<KanbanTask> & { due_date?: string }) => api.post<KanbanTask>('/kanban', body),
   update: (id: string, body: Partial<KanbanTask> & { due_date?: string }) => api.patch<KanbanTask>(`/kanban/${id}`, body),
@@ -119,6 +119,9 @@ export const kanbanApi = {
   uploadGeneric: (file: File) => api.upload<{ path: string }>('/files', file),
   uploadFile: (id: string, file: File) => api.upload<{ path: string }>(`/kanban/${id}/files`, file),
   uploadCommentFile: (id: string, file: File) => api.upload<{ path: string }>(`/kanban/comments/${id}/files`, file),
+  get: (id: string) => api.get<KanbanTask>(`/kanban/${id}`),
+  joinTask: (id: string) => api.post<{ id: string; task_id: string; user_id: string; user_name: string; joined_at: string }[]>(`/kanban/${id}/members`, {}),
+  leaveTask: (id: string) => api.delete<{ id: string; task_id: string; user_id: string; user_name: string; joined_at: string }[]>(`/kanban/${id}/members`),
 };
 
 // Admin

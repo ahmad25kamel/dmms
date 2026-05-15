@@ -29,6 +29,7 @@ func main() {
 	projectRepo := repository.NewProjectRepo(db)
 	deliverableRepo := repository.NewDeliverableRepo(db)
 	taskRepo := repository.NewTaskRepo(db)
+	kanbanRepo := repository.NewKanbanRepo(db)
 	proposalRepo := repository.NewProposalRepo(db)
 	submissionRepo := repository.NewSubmissionRepo(db)
 	rewardRepo := repository.NewRewardRepo(db)
@@ -46,7 +47,7 @@ func main() {
 	marketH := handlers.NewMarketplaceHandler(deliverableRepo)
 	rewardH := handlers.NewRewardHandler(rewardRepo)
 	adminH := handlers.NewAdminHandler(userRepo)
-	kanbanH := handlers.NewKanbanHandler(taskRepo)
+	kanbanH := handlers.NewKanbanHandler(taskRepo, kanbanRepo)
 
 	// Auth middleware
 	authMW := middleware.Auth(authSvc)
@@ -122,10 +123,13 @@ func main() {
 	mux.Handle("GET /api/dmms/kanban/mine", authMW(http.HandlerFunc(kanbanH.Mine)))
 	mux.Handle("POST /api/dmms/kanban", authMW(http.HandlerFunc(kanbanH.Create)))
 	mux.Handle("PUT /api/dmms/kanban/reorder", authMW(http.HandlerFunc(kanbanH.Reorder)))
+	mux.Handle("GET /api/dmms/kanban/{id}", authMW(http.HandlerFunc(kanbanH.GetOne)))
 	mux.Handle("PATCH /api/dmms/kanban/{id}", authMW(http.HandlerFunc(kanbanH.Update)))
 	mux.Handle("DELETE /api/dmms/kanban/{id}", authMW(http.HandlerFunc(kanbanH.Delete)))
 	mux.Handle("GET /api/dmms/kanban/{id}/comments", authMW(http.HandlerFunc(kanbanH.ListComments)))
 	mux.Handle("POST /api/dmms/kanban/{id}/comments", authMW(http.HandlerFunc(kanbanH.CreateComment)))
+	mux.Handle("POST /api/dmms/kanban/{id}/members", authMW(http.HandlerFunc(kanbanH.JoinTask)))
+	mux.Handle("DELETE /api/dmms/kanban/{id}/members", authMW(http.HandlerFunc(kanbanH.LeaveTask)))
 	mux.Handle("POST /api/dmms/files", authMW(http.HandlerFunc(kanbanH.UploadGeneric)))
 
 	// Admin

@@ -123,12 +123,14 @@ type Task struct {
 	UpdatedAt      time.Time    `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
 	FilePaths      string       `json:"file_uploads" gorm:"column:file_uploads;default:'[]'"`
 	// Enriched fields
-	ProjectName      string `json:"project_name,omitempty" gorm:"->"`
-	DeliverableTitle string `json:"deliverable_title,omitempty" gorm:"->"`
-	AssignedToName   string `json:"assigned_to_name,omitempty" gorm:"->"`
-	CreatedByName    string `json:"created_by_name,omitempty" gorm:"->"`
-	CommentCount     int    `json:"comment_count,omitempty" gorm:"->"`
-	
+	ProjectName        string     `json:"project_name,omitempty" gorm:"->"`
+	DeliverableTitle   string     `json:"deliverable_title,omitempty" gorm:"->"`
+	DeliverableDueDate *time.Time `json:"deliverable_due_date,omitempty" gorm:"->"`
+	AssignedToName     string     `json:"assigned_to_name,omitempty" gorm:"->"`
+	CreatedByName      string     `json:"created_by_name,omitempty" gorm:"->"`
+	CommentCount       int        `json:"comment_count,omitempty" gorm:"->"`
+	Members            []TaskMember `json:"members,omitempty" gorm:"-"`
+
 	// Associations
 	Project      *Project     `json:"-" gorm:"foreignKey:ProjectID"`
 	Deliverable  *Deliverable `json:"-" gorm:"foreignKey:DeliverableID"`
@@ -155,6 +157,16 @@ func (TaskComment) TableName() string { return "dmms_task_comments" }
 
 // Alias for migration
 type KanbanComment = TaskComment
+
+type TaskMember struct {
+	ID       string    `json:"id" gorm:"primaryKey;size:191"`
+	TaskID   string    `json:"task_id" gorm:"column:task_id;not null;size:191;uniqueIndex:uidx_task_user"`
+	UserID   string    `json:"user_id" gorm:"column:user_id;not null;size:191;uniqueIndex:uidx_task_user"`
+	UserName string    `json:"user_name,omitempty" gorm:"->"`
+	JoinedAt time.Time `json:"joined_at" gorm:"default:CURRENT_TIMESTAMP"`
+}
+
+func (TaskMember) TableName() string { return "dmms_task_members" }
 
 
 type SubmissionStatus string

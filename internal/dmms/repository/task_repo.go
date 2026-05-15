@@ -47,7 +47,7 @@ func (r *TaskRepo) Delete(id string) error {
 func (r *TaskRepo) Get(id string) (*models.Task, error) {
 	var t models.Task
 	err := r.db.Model(&models.Task{}).
-		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
@@ -62,7 +62,7 @@ func (r *TaskRepo) Get(id string) (*models.Task, error) {
 func (r *TaskRepo) ListByDeliverable(deliverableID string) ([]*models.Task, error) {
 	var out []*models.Task
 	err := r.db.Model(&models.Task{}).
-		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
@@ -72,10 +72,38 @@ func (r *TaskRepo) ListByDeliverable(deliverableID string) ([]*models.Task, erro
 	return out, err
 }
 
+func (r *TaskRepo) CountByProject(projectID, status string) (int64, error) {
+	var n int64
+	q := r.db.Model(&models.Task{}).InnerJoins("Project").InnerJoins("Deliverable").Where("dmms_tasks.project_id = ?", projectID)
+	if status != "" {
+		q = q.Where("dmms_tasks.status = ?", status)
+	}
+	return n, q.Count(&n).Error
+}
+
+func (r *TaskRepo) CountAll(status string) (int64, error) {
+	var n int64
+	q := r.db.Model(&models.Task{}).InnerJoins("Project").InnerJoins("Deliverable")
+	if status != "" {
+		q = q.Where("dmms_tasks.status = ?", status)
+	}
+	return n, q.Count(&n).Error
+}
+
+func (r *TaskRepo) CountForContributor(userID, status string) (int64, error) {
+	var n int64
+	q := r.db.Model(&models.Task{}).InnerJoins("Project").InnerJoins("Deliverable").
+		Where("(dmms_tasks.assigned_to = ? OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id=dmms_tasks.deliverable_id AND dd.owner_id=? AND dd.deleted_at IS NULL))", userID, userID)
+	if status != "" {
+		q = q.Where("dmms_tasks.status = ?", status)
+	}
+	return n, q.Count(&n).Error
+}
+
 func (r *TaskRepo) ListByProject(projectID string, limit, offset int, status string) ([]*models.Task, error) {
 	var out []*models.Task
 	q := r.db.Model(&models.Task{}).
-		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
@@ -88,14 +116,14 @@ func (r *TaskRepo) ListByProject(projectID string, limit, offset int, status str
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
-	err := q.Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
+	err := q.Order("CASE WHEN COALESCE(dmms_tasks.due_date, Deliverable.due_date) IS NULL THEN 1 ELSE 0 END, COALESCE(dmms_tasks.due_date, Deliverable.due_date) ASC, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
 func (r *TaskRepo) ListAll(limit, offset int, status string) ([]*models.Task, error) {
 	var out []*models.Task
 	q := r.db.Model(&models.Task{}).
-		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
@@ -107,14 +135,14 @@ func (r *TaskRepo) ListAll(limit, offset int, status string) ([]*models.Task, er
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
-	err := q.Order("dmms_tasks.status, dmms_tasks.position").Scan(&out).Error
+	err := q.Order("CASE WHEN COALESCE(dmms_tasks.due_date, Deliverable.due_date) IS NULL THEN 1 ELSE 0 END, COALESCE(dmms_tasks.due_date, Deliverable.due_date) ASC, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 
 func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status string) ([]*models.Task, error) {
 	var out []*models.Task
 	q := r.db.Model(&models.Task{}).
-		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
+		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
@@ -127,7 +155,7 @@ func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status s
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
-	err := q.Order("dmms_tasks.status, dmms_tasks.project_id, dmms_tasks.position").Scan(&out).Error
+	err := q.Order("CASE WHEN COALESCE(dmms_tasks.due_date, Deliverable.due_date) IS NULL THEN 1 ELSE 0 END, COALESCE(dmms_tasks.due_date, Deliverable.due_date) ASC, dmms_tasks.position").Scan(&out).Error
 	return out, err
 }
 

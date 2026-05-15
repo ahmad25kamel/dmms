@@ -749,6 +749,14 @@ a:hover {
   flex-direction: column;
 }
 
+.dmms-modal--lg {
+  max-width: 780px;
+}
+
+.dmms-modal--xl {
+  max-width: 1040px;
+}
+
 .dmms-modal-head {
   padding: 18px 20px 10px;
   border-bottom: 1px solid var(--border-1);

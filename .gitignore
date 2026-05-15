@@ -48,4 +48,6 @@ finance-game
 dist/
 bookmarks-api
 /*.json
-dmms-server
+/dmms-server
+/dmms
+uploads/

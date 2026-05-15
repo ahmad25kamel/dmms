@@ -16,11 +16,17 @@ import (
 )
 
 type KanbanHandler struct {
-	tasks *repository.TaskRepo
+	tasks  *repository.TaskRepo
+	kanban *repository.KanbanRepo
 }
 
-func NewKanbanHandler(tasks *repository.TaskRepo) *KanbanHandler {
-	return &KanbanHandler{tasks: tasks}
+func NewKanbanHandler(tasks *repository.TaskRepo, kanban *repository.KanbanRepo) *KanbanHandler {
+	return &KanbanHandler{tasks: tasks, kanban: kanban}
+}
+
+type taskListResponse struct {
+	Items []*models.Task `json:"items"`
+	Total int64          `json:"total"`
 }
 
 // GET /kanban?project_id=&limit=&offset=&status=
@@ -31,12 +37,19 @@ func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 
 	var tasks []*models.Task
+	var total int64
 	var err error
 
 	if projectID != "" {
 		tasks, err = h.tasks.ListByProject(projectID, limit, offset, status)
+		if err == nil {
+			total, _ = h.tasks.CountByProject(projectID, status)
+		}
 	} else {
 		tasks, err = h.tasks.ListAll(limit, offset, status)
+		if err == nil {
+			total, _ = h.tasks.CountAll(status)
+		}
 	}
 
 	if err != nil {
@@ -46,7 +59,8 @@ func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
 	if tasks == nil {
 		tasks = []*models.Task{}
 	}
-	JSON(w, http.StatusOK, tasks)
+	h.populateMembers(tasks)
+	JSON(w, http.StatusOK, taskListResponse{Items: tasks, Total: total})
 }
 
 // GET /kanban/mine (contributor view — all tasks for their deliverables)
@@ -64,7 +78,30 @@ func (h *KanbanHandler) Mine(w http.ResponseWriter, r *http.Request) {
 	if tasks == nil {
 		tasks = []*models.Task{}
 	}
-	JSON(w, http.StatusOK, tasks)
+	h.populateMembers(tasks)
+	total, _ := h.tasks.CountForContributor(userID, status)
+	JSON(w, http.StatusOK, taskListResponse{Items: tasks, Total: total})
+}
+
+func (h *KanbanHandler) populateMembers(tasks []*models.Task) {
+	if len(tasks) == 0 {
+		return
+	}
+	ids := make([]string, len(tasks))
+	for i, t := range tasks {
+		ids[i] = t.ID
+	}
+	memberMap, err := h.kanban.GetMembersForTasks(ids)
+	if err != nil {
+		return
+	}
+	for _, t := range tasks {
+		if members, ok := memberMap[t.ID]; ok {
+			t.Members = members
+		} else {
+			t.Members = []models.TaskMember{}
+		}
+	}
 }
 
 // POST /kanban
@@ -111,6 +148,17 @@ func (h *KanbanHandler) Create(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusCreated, t)
 }
 
+// GET /kanban/:id
+func (h *KanbanHandler) GetOne(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	task, err := h.kanban.Get(id)
+	if err != nil || task.ID == "" {
+		Err(w, http.StatusNotFound, "task not found")
+		return
+	}
+	JSON(w, http.StatusOK, task)
+}
+
 // PATCH /kanban/:id
 func (h *KanbanHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -143,6 +191,16 @@ func (h *KanbanHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.AssignedTo != nil {
 		existing.AssignedTo = body.AssignedTo
+		// Auto-add newly assigned user to task members
+		if *body.AssignedTo != "" {
+			m := &models.TaskMember{
+				ID:       uuid.New().String(),
+				TaskID:   id,
+				UserID:   *body.AssignedTo,
+				JoinedAt: time.Now(),
+			}
+			_ = h.kanban.AddMember(m) // INSERT IGNORE — safe to ignore duplicate
+		}
 	}
 	if body.Position != nil {
 		existing.Position = *body.Position
@@ -164,7 +222,13 @@ func (h *KanbanHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to update task")
 		return
 	}
-	JSON(w, http.StatusOK, existing)
+	// Re-fetch to get enriched fields (assigned_to_name, project_name, members, etc.)
+	refreshed, err := h.kanban.Get(id)
+	if err != nil {
+		JSON(w, http.StatusOK, existing)
+		return
+	}
+	JSON(w, http.StatusOK, refreshed)
 }
 
 // DELETE /kanban/:id
@@ -288,6 +352,44 @@ func (h *KanbanHandler) UploadGeneric(w http.ResponseWriter, r *http.Request) {
 		JSON(w, http.StatusOK, map[string]string{"path": filepath})
 		return nil
 	})
+}
+
+// POST /kanban/{id}/members — join task as a member
+func (h *KanbanHandler) JoinTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	userID := middleware.GetUserID(r)
+	m := &models.TaskMember{
+		ID:       uuid.New().String(),
+		TaskID:   id,
+		UserID:   userID,
+		JoinedAt: time.Now(),
+	}
+	if err := h.kanban.AddMember(m); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to join task")
+		return
+	}
+	members, err := h.kanban.GetMembers(id)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to fetch members")
+		return
+	}
+	JSON(w, http.StatusOK, members)
+}
+
+// DELETE /kanban/{id}/members — leave task
+func (h *KanbanHandler) LeaveTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	userID := middleware.GetUserID(r)
+	if err := h.kanban.RemoveMember(id, userID); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to leave task")
+		return
+	}
+	members, err := h.kanban.GetMembers(id)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to fetch members")
+		return
+	}
+	JSON(w, http.StatusOK, members)
 }
 
 func handleFileUpload(w http.ResponseWriter, r *http.Request, updateFn func(string) error) {

@@ -38,5 +38,6 @@ func runMigrations(db *gorm.DB) error {
 		&models.Proposal{},
 		&models.Submission{},
 		&models.RewardLedgerEntry{},
+		&models.TaskMember{},
 	)
 }
