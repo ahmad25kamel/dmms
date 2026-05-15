@@ -159,6 +159,14 @@ func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status s
 	return out, err
 }
 
+func (r *TaskRepo) CountRequiredPending(deliverableID string) (int64, error) {
+	var n int64
+	err := r.db.Model(&models.Task{}).
+		Where("deliverable_id = ? AND is_required = true AND status != ?", deliverableID, models.KanbanDone).
+		Count(&n).Error
+	return n, err
+}
+
 // Comments
 func (r *TaskRepo) ListComments(taskID string) ([]*models.TaskComment, error) {
 	var out []*models.TaskComment

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"dmms/internal/middleware"
@@ -73,13 +74,27 @@ func (h *SubmissionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		s.PRLinks = "[]"
 	}
 
+	// Block if required kanban tasks are incomplete
+	pending, err := h.subtasks.CountRequiredPending(deliverableID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to check required tasks")
+		return
+	}
+	if pending > 0 {
+		Err(w, http.StatusBadRequest, fmt.Sprintf("%d required task(s) not completed", pending))
+		return
+	}
+
 	if err := h.submissions.Create(s); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to create submission")
 		return
 	}
 
 	// Move deliverable to submitted
-	h.deliverables.UpdateStatus(deliverableID, models.DelivSubmitted) //nolint:errcheck
+	if err := h.deliverables.UpdateStatus(deliverableID, models.DelivSubmitted); err != nil {
+		Err(w, http.StatusInternalServerError, "submission created but failed to update deliverable status")
+		return
+	}
 
 	JSON(w, http.StatusCreated, s)
 }
@@ -123,7 +138,10 @@ func (h *SubmissionHandler) RequestRevision(w http.ResponseWriter, r *http.Reque
 	var body struct {
 		Notes string `json:"notes"`
 	}
-	Decode(r, &body) //nolint:errcheck
+	if err := Decode(r, &body); err != nil {
+		Err(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 	if err := h.submissions.Review(id, models.SubmissionRevisionRequested, reviewerID, body.Notes); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to request revision")
 		return
@@ -131,7 +149,10 @@ func (h *SubmissionHandler) RequestRevision(w http.ResponseWriter, r *http.Reque
 	// Move deliverable to revision_requested
 	sub, _ := h.submissions.FindByID(id)
 	if sub != nil {
-		h.deliverables.UpdateStatus(sub.DeliverableID, models.DelivRevisionRequested) //nolint:errcheck
+		if err := h.deliverables.UpdateStatus(sub.DeliverableID, models.DelivRevisionRequested); err != nil {
+			Err(w, http.StatusInternalServerError, "revision requested but failed to update deliverable status")
+			return
+		}
 	}
 	JSON(w, http.StatusOK, map[string]bool{"revision_requested": true})
 }
@@ -142,7 +163,10 @@ func (h *SubmissionHandler) RejectSubmission(w http.ResponseWriter, r *http.Requ
 	var body struct {
 		Notes string `json:"notes"`
 	}
-	Decode(r, &body) //nolint:errcheck
+	if err := Decode(r, &body); err != nil {
+		Err(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 	if err := h.submissions.Review(id, models.SubmissionRejected, reviewerID, body.Notes); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to reject submission")
 		return
@@ -150,7 +174,10 @@ func (h *SubmissionHandler) RejectSubmission(w http.ResponseWriter, r *http.Requ
 	// Move deliverable to rejected
 	sub, _ := h.submissions.FindByID(id)
 	if sub != nil {
-		h.deliverables.UpdateStatus(sub.DeliverableID, models.DelivRejected) //nolint:errcheck
+		if err := h.deliverables.UpdateStatus(sub.DeliverableID, models.DelivRejected); err != nil {
+			Err(w, http.StatusInternalServerError, "submission rejected but failed to update deliverable status")
+			return
+		}
 	}
 	JSON(w, http.StatusOK, map[string]bool{"rejected": true})
 }
