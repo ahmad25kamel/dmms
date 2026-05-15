@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -311,17 +312,21 @@ func (h *KanbanHandler) Reorder(w http.ResponseWriter, r *http.Request) {
 // POST /kanban/:id/files
 func (h *KanbanHandler) UploadTaskFile(w http.ResponseWriter, r *http.Request) {
 	taskID := r.PathValue("id")
-	handleFileUpload(w, r, func(filepath string) error {
+	handleFileUpload(w, r, func(fp string) error {
 		t, err := h.tasks.Get(taskID)
 		if err != nil { return err }
-		// naive json array append
-		if t.FilePaths == "[]" || t.FilePaths == "" {
-			t.FilePaths = "[\"" + filepath + "\"]"
-		} else {
-			t.FilePaths = t.FilePaths[:len(t.FilePaths)-1] + ",\"" + filepath + "\"]"
+		var paths []string
+		if t.FilePaths != "" && t.FilePaths != "[]" {
+			if err := json.Unmarshal([]byte(t.FilePaths), &paths); err != nil {
+				return fmt.Errorf("corrupt file_paths for task %s: %w", taskID, err)
+			}
 		}
+		paths = append(paths, fp)
+		b, err := json.Marshal(paths)
+		if err != nil { return err }
+		t.FilePaths = string(b)
 		if err := h.tasks.Update(t); err != nil { return err }
-		JSON(w, http.StatusOK, map[string]string{"path": filepath})
+		JSON(w, http.StatusOK, map[string]string{"path": fp})
 		return nil
 	})
 }
@@ -329,19 +334,21 @@ func (h *KanbanHandler) UploadTaskFile(w http.ResponseWriter, r *http.Request) {
 // POST /kanban/comments/:id/files
 func (h *KanbanHandler) UploadCommentFile(w http.ResponseWriter, r *http.Request) {
 	commentID := r.PathValue("id")
-	handleFileUpload(w, r, func(filepath string) error {
+	handleFileUpload(w, r, func(fp string) error {
 		c, err := h.tasks.GetComment(commentID)
 		if err != nil { return err }
-		// naive json array append
-		if c.FilePaths == "[]" || c.FilePaths == "" {
-			c.FilePaths = "[\"" + filepath + "\"]"
-		} else {
-			c.FilePaths = c.FilePaths[:len(c.FilePaths)-1] + ",\"" + filepath + "\"]"
+		var paths []string
+		if c.FilePaths != "" && c.FilePaths != "[]" {
+			if err := json.Unmarshal([]byte(c.FilePaths), &paths); err != nil {
+				return fmt.Errorf("corrupt file_paths for comment %s: %w", commentID, err)
+			}
 		}
-		// Since we don't have UpdateComment in repo, we need to update it
-		// For simplicity, we just save via raw gorm update in repo or add a method.
+		paths = append(paths, fp)
+		b, err := json.Marshal(paths)
+		if err != nil { return err }
+		c.FilePaths = string(b)
 		if err := h.tasks.UpdateComment(c); err != nil { return err }
-		JSON(w, http.StatusOK, map[string]string{"path": filepath})
+		JSON(w, http.StatusOK, map[string]string{"path": fp})
 		return nil
 	})
 }
