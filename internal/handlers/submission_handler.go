@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -72,6 +73,21 @@ func (h *SubmissionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.PRLinks == "" {
 		s.PRLinks = "[]"
+	}
+
+	// Validate acceptance criteria checklist
+	if d.AcceptanceCriteria != "" && d.AcceptanceCriteria != "[]" {
+		var criteria []string
+		if err := json.Unmarshal([]byte(d.AcceptanceCriteria), &criteria); err == nil && len(criteria) > 0 {
+			var completed map[string]bool
+			_ = json.Unmarshal([]byte(s.ChecklistCompletion), &completed)
+			for _, c := range criteria {
+				if !completed[c] {
+					Err(w, http.StatusBadRequest, fmt.Sprintf("acceptance criterion not completed: %q", c))
+					return
+				}
+			}
+		}
 	}
 
 	// Block if required kanban tasks are incomplete
