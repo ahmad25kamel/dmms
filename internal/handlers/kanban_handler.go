@@ -207,6 +207,11 @@ func (h *KanbanHandler) Update(w http.ResponseWriter, r *http.Request) {
 		existing.Position = *body.Position
 	}
 	if body.IsRequired != nil {
+		role := middleware.GetRole(r)
+		if role != models.RolePM && role != models.RoleAdmin {
+			Err(w, http.StatusForbidden, "only PM or admin can set is_required")
+			return
+		}
 		existing.IsRequired = *body.IsRequired
 	}
 	if body.DueDate != nil {
