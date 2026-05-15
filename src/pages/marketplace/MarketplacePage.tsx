@@ -11,6 +11,7 @@ export function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Deliverable | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     marketplaceApi.listBids().then(setBids).finally(() => setLoading(false));
@@ -24,15 +25,25 @@ export function MarketplacePage() {
 
   if (loading) return <Spinner />;
 
-  const projectTrees = buildTreesByProject(bids);
+  const q = search.trim().toLowerCase();
+  const filteredBids = q
+    ? bids.filter(b => b.title.toLowerCase().includes(q) || (b.brief ?? '').toLowerCase().includes(q))
+    : bids;
+  const projectTrees = buildTreesByProject(filteredBids);
 
   return (
     <div className="dmms-page">
       <div className="dmms-page-head">
         <div>
           <h1>Marketplace</h1>
-          <p className="dmms-page-sub">{bids.length} open bid{bids.length !== 1 ? 's' : ''}</p>
+          <p className="dmms-page-sub">{filteredBids.length} of {bids.length} open bid{bids.length !== 1 ? 's' : ''}</p>
         </div>
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search deliverables…"
+          style={{ width: 220 }}
+        />
       </div>
 
       {bids.length === 0 ? (
