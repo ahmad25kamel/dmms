@@ -35,8 +35,8 @@ jobs:
         run: |
           ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
             export PATH=$PATH:/usr/local/go/bin
-            cd ~/webserver/finance-game/
+            cd ~/webserver/dmms/
             git pull
             make build
-            sudo systemctl restart go-server-finance-game.service
+            sudo systemctl restart dmms.service
           EOF

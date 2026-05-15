@@ -7,13 +7,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"finance-game/internal/config"
-	"finance-game/internal/database"
-	"finance-game/internal/handlers"
-	"finance-game/internal/middleware"
-	"finance-game/internal/models"
-	"finance-game/internal/repository"
-	"finance-game/internal/service"
+	"dmms/internal/config"
+	"dmms/internal/database"
+	"dmms/internal/handlers"
+	"dmms/internal/middleware"
+	"dmms/internal/models"
+	"dmms/internal/repository"
+	"dmms/internal/service"
 )
 
 func main() {

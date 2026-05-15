@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"finance-game/internal/models"
+	"dmms/internal/models"
 	"gorm.io/gorm"
 )
 

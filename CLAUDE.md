@@ -109,6 +109,4 @@ Get a token: `curl -s -X POST http://localhost:3005/api/dmms/auth/login -H "Cont
 
 ## Notes
 
-- The `go.mod` module name is `finance-game` (legacy name; DMMS was built on top of this repo)
-- The repo also contains unrelated files (`game.db`, `scoring/`, `bookmarks-api/`) from prior experiments — ignore these
 - `dmms.db` is a local SQLite artifact; production uses MySQL

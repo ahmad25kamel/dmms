@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"finance-game/internal/middleware"
-	"finance-game/internal/models"
-	"finance-game/internal/repository"
+	"dmms/internal/middleware"
+	"dmms/internal/models"
+	"dmms/internal/repository"
 	"github.com/google/uuid"
 )
 

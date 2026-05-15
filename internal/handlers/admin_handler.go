@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"finance-game/internal/models"
-	"finance-game/internal/repository"
+	"dmms/internal/models"
+	"dmms/internal/repository"
 )
 
 type AdminHandler struct {

@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 
-	"finance-game/internal/models"
+	"dmms/internal/models"
 	"gorm.io/gorm"
 )
 

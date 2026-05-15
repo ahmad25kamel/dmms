@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"finance-game/internal/middleware"
-	"finance-game/internal/models"
-	"finance-game/internal/repository"
-	"finance-game/internal/service"
+	"dmms/internal/middleware"
+	"dmms/internal/models"
+	"dmms/internal/repository"
+	"dmms/internal/service"
 	"github.com/google/uuid"
 )
 

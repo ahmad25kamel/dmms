@@ -1,4 +1,4 @@
-module finance-game
+module dmms
 
 go 1.25.0
 

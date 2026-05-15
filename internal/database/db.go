@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"finance-game/internal/config"
-	"finance-game/internal/models"
+	"dmms/internal/config"
+	"dmms/internal/models"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

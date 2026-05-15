@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"finance-game/internal/models"
-	"finance-game/internal/service"
+	"dmms/internal/models"
+	"dmms/internal/service"
 )
 
 type contextKey string
