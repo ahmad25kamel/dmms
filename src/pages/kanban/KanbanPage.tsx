@@ -105,30 +105,29 @@ function PMKanban() {
   }
 
   return (
-    <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
-      <div className="dmms-page-head" style={{ flexShrink: 0 }}>
-        <div>
-          <h1>Kanban Board</h1>
-          <p className="dmms-page-sub">Monitor all task progress across projects</p>
+    <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', gap: 0, padding: '12px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h1 style={{ margin: 0, font: '600 17px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>Kanban Board</h1>
+          <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>Monitor all task progress across projects</span>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Task
-        </Button>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, flexShrink: 0 }}>
-        <Select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ width: 200 }}>
-          <option value="">All Projects</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </Select>
-        <Select value={filterContributor} onChange={e => setFilterContributor(e.target.value)} style={{ width: 200 }}>
-          <option value="">All Contributors</option>
-          {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-        </Select>
-        {(filterProject || filterContributor) && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterProject(''); setFilterContributor(''); }}>Clear filters</Button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ width: 160, height: 28, fontSize: 12 }}>
+            <option value="">All Projects</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Select>
+          <Select value={filterContributor} onChange={e => setFilterContributor(e.target.value)} style={{ width: 160, height: 28, fontSize: 12 }}>
+            <option value="">All Contributors</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </Select>
+          {(filterProject || filterContributor) && (
+            <Button variant="ghost" size="sm" onClick={() => { setFilterProject(''); setFilterContributor(''); }}>Clear</Button>
+          )}
+          <Button onClick={() => setShowCreate(true)} size="sm">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Task
+          </Button>
+        </div>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
@@ -236,14 +235,14 @@ function ContributorKanban() {
   if (!user) return null;
 
   return (
-    <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
-      <div className="dmms-page-head">
-        <div>
-          <h1>My Task Board</h1>
-          <p className="dmms-page-sub">Your personal kanban — tasks across all assigned deliverables</p>
+    <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', gap: 0, padding: '12px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h1 style={{ margin: 0, font: '600 17px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>My Task Board</h1>
+          <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>Your personal kanban — tasks across all assigned deliverables</span>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <Button onClick={() => setShowCreate(true)} size="sm">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Task
         </Button>
       </div>
@@ -341,6 +340,7 @@ function KanbanColumn({ status, label, color, tasks, totalCount, resetKey, onMov
   onLoadMore: (status: KanbanStatus, offset: number) => Promise<number>;
 }) {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const loadingRef = useRef(false);
   const hasMoreRef = useRef(true);
 
@@ -369,9 +369,15 @@ function KanbanColumn({ status, label, color, tasks, totalCount, resetKey, onMov
     const el = e.currentTarget;
     if (el.scrollHeight - el.scrollTop <= el.clientHeight + 80 && !loadingRef.current && hasMoreRef.current) {
       loadingRef.current = true;
-      const count = await onLoadMore(status, tasks.length);
-      hasMoreRef.current = count === 20;
-      loadingRef.current = false;
+      setLoadError(false);
+      try {
+        const count = await onLoadMore(status, tasks.length);
+        hasMoreRef.current = count === 20;
+      } catch {
+        setLoadError(true);
+      } finally {
+        loadingRef.current = false;
+      }
     }
   };
 
@@ -419,6 +425,17 @@ function KanbanColumn({ status, label, color, tasks, totalCount, resetKey, onMov
           </React.Fragment>
         ))}
         {loadingRef.current && <Spinner />}
+        {loadError && (
+          <div style={{ fontSize: 12, color: 'var(--fg-3)', textAlign: 'center', padding: '8px 0' }}>
+            Failed to load more.{' '}
+            <button
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--kamel-blue)', fontSize: 12, textDecoration: 'underline', padding: 0 }}
+              onClick={() => { setLoadError(false); onLoadMore(status, tasks.length).catch(() => setLoadError(true)); }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         <div style={{ height: 20, flexShrink: 0 }} />
       </div>
     </div>
