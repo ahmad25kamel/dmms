@@ -136,15 +136,15 @@ The server listens on `DMMS_PORT` (default `3005`) and serves both the API at `/
 
 ```
 .
-├── cmd/dmms/              # Server entry point
-├── internal/dmms/
-│   ├── config/            # Environment config loader
-│   ├── database/          # GORM setup + AutoMigrate
-│   ├── handlers/          # HTTP handlers (one file per domain)
-│   ├── middleware/        # JWT auth middleware
-│   ├── models/            # Go structs and status constants
-│   ├── repository/        # Data access layer — all DB queries live here
-│   └── service/           # Business logic (proposals, rewards, budgets)
+├── cmd/dmms/          # Server entry point
+├── internal/
+│   ├── config/        # Environment config loader
+│   ├── database/      # GORM setup + AutoMigrate
+│   ├── handlers/      # HTTP handlers (one file per domain)
+│   ├── middleware/    # JWT auth middleware
+│   ├── models/        # Go structs and status constants
+│   ├── repository/    # Data access layer — all DB queries live here
+│   └── service/       # Business logic (proposals, rewards, budgets)
 ├── migrations/            # SQL schema reference
 ├── src/
 │   ├── api/               # Typed API client functions

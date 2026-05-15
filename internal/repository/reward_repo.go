@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"finance-game/internal/dmms/models"
+	"finance-game/internal/models"
 	"gorm.io/gorm"
 )
 

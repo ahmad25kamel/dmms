@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"finance-game/internal/dmms/models"
-	"finance-game/internal/dmms/repository"
+	"finance-game/internal/models"
+	"finance-game/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"

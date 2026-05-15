@@ -45,10 +45,10 @@ The codebase follows a layered architecture. When adding or changing behaviour, 
 
 | Layer | Location | Responsibility |
 |-------|----------|---------------|
-| Models | `internal/dmms/models/` | Data structs and status constants — no logic |
-| Repository | `internal/dmms/repository/` | All DB queries — no business rules |
-| Service | `internal/dmms/service/` | Business logic (proposals, rewards, budgets) |
-| Handlers | `internal/dmms/handlers/` | HTTP layer — parse request, call service, return response |
+| Models | `internal/models/` | Data structs and status constants — no logic |
+| Repository | `internal/repository/` | All DB queries — no business rules |
+| Service | `internal/service/` | Business logic (proposals, rewards, budgets) |
+| Handlers | `internal/handlers/` | HTTP layer — parse request, call service, return response |
 | Frontend API | `src/api/` | Typed wrappers around fetch calls |
 | Pages | `src/pages/` | Route-level React components |
 | Components | `src/components/` | Shared, reusable UI components |

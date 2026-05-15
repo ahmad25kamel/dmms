@@ -3,8 +3,8 @@ package service
 import (
 	"fmt"
 
-	"finance-game/internal/dmms/models"
-	"finance-game/internal/dmms/repository"
+	"finance-game/internal/models"
+	"finance-game/internal/repository"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
