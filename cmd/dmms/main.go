@@ -56,9 +56,11 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	rateLimitMW := middleware.RateLimit
+
 	// Auth
-	mux.HandleFunc("POST /api/dmms/auth/register", authH.Register)
-	mux.HandleFunc("POST /api/dmms/auth/login", authH.Login)
+	mux.Handle("POST /api/dmms/auth/register", rateLimitMW(http.HandlerFunc(authH.Register)))
+	mux.Handle("POST /api/dmms/auth/login", rateLimitMW(http.HandlerFunc(authH.Login)))
 	mux.Handle("GET /api/dmms/auth/me", authMW(http.HandlerFunc(authH.Me)))
 	mux.Handle("GET /api/dmms/users", authMW(http.HandlerFunc(adminH.ListUsers)))
 
