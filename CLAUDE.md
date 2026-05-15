@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DMMS (Deliverable Marketplace Management System) — a SaaS platform where PMs break work into recursive deliverable trees, Contributors bid on items, and approvals trigger automatic reward ledger entries.
+DMMS (Deliverable Modular Management System) — a SaaS platform where PMs break work into recursive deliverable trees, Contributors bid on items, and approvals trigger automatic reward ledger entries.
 
 Three roles: **PM** (create projects, review bids, approve submissions), **Contributor** (browse marketplace, submit proposals, complete work), **Admin** (manage users/roles).
 

@@ -1,4 +1,4 @@
-# DMMS — Deliverable Marketplace Management System
+# DMMS — Deliverable Modular Management System
 
 > A structured project delivery platform where PMs break work into a recursive deliverable tree, contributors bid on items, and approvals trigger automatic reward ledger entries.
 

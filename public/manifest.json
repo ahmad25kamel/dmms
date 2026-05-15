@@ -1,7 +1,7 @@
 {
   "name": "DMMS",
   "short_name": "DMMS",
-  "description": "Deliverable Marketplace Management System",
+  "description": "Deliverable Modular Management System",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
