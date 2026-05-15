@@ -16,6 +16,7 @@ export function ProjectDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
   const [editSaving, setEditSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -125,9 +126,11 @@ export function ProjectDetailPage() {
     }
   };
 
-  const handleDeleteProject = async () => {
+  const handleDeleteProject = () => setConfirmDelete(true);
+
+  const doDeleteProject = async () => {
     if (!projectId) return;
-    if (!confirm('Are you sure you want to delete this project?')) return;
+    setConfirmDelete(false);
     try {
       await projectsApi.delete(projectId);
       navigate('/projects');
@@ -270,6 +273,17 @@ export function ProjectDetailPage() {
               </FormField>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Delete project?" onClose={() => setConfirmDelete(false)} footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button variant="danger" onClick={doDeleteProject}>Delete Project</Button>
+          </div>
+        }>
+          <p>This will permanently delete the project and all its deliverables. This action cannot be undone.</p>
         </Modal>
       )}
     </div>

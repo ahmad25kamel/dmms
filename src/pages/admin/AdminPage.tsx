@@ -9,6 +9,7 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [newRole, setNewRole] = useState('');
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
 
   useEffect(() => {
     adminApi.listUsers().then(setUsers).finally(() => setLoading(false));
@@ -21,10 +22,11 @@ export function AdminPage() {
     setEditUser(null);
   }
 
-  async function deleteUser(id: string) {
-    if (!confirm('Delete this user?')) return;
-    await adminApi.deleteUser(id);
-    setUsers(us => us.filter(u => u.id !== id));
+  async function doDeleteUser() {
+    if (!confirmDeleteUser) return;
+    await adminApi.deleteUser(confirmDeleteUser.id);
+    setUsers(us => us.filter(u => u.id !== confirmDeleteUser.id));
+    setConfirmDeleteUser(null);
   }
 
   if (loading) return <Spinner />;
@@ -53,13 +55,24 @@ export function AdminPage() {
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button size="sm" variant="secondary" onClick={() => { setEditUser(u); setNewRole(u.role); }}>Change Role</Button>
-                <Button size="sm" variant="danger" onClick={() => deleteUser(u.id)}>
+                <Button size="sm" variant="danger" onClick={() => setConfirmDeleteUser(u)}>
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
                 </Button>
               </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {confirmDeleteUser && (
+        <Modal title="Delete user?" onClose={() => setConfirmDeleteUser(null)} footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setConfirmDeleteUser(null)}>Cancel</Button>
+            <Button variant="danger" onClick={doDeleteUser}>Delete User</Button>
+          </div>
+        }>
+          <p>Are you sure you want to delete <strong>{confirmDeleteUser.name}</strong> (@{confirmDeleteUser.username})? This cannot be undone.</p>
+        </Modal>
       )}
 
       {editUser && (

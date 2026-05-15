@@ -14,6 +14,7 @@ export function DeliverableTreePage() {
   const [showCreate, setShowCreate] = useState<string | null>(null);
   const [editDeliverable, setEditDeliverable] = useState<Deliverable | null>(null);
   const [taskDeliverable, setTaskDeliverable] = useState<Deliverable | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     if (!projectId) return;
@@ -45,8 +46,13 @@ export function DeliverableTreePage() {
   async function handleReopen(id: string) { await deliverablesApi.reopen(id); reload(); }
   async function handleReassign(id: string) { await deliverablesApi.reassign(id); reload(); }
   async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this deliverable?')) return;
-    await deliverablesApi.delete(id);
+    setConfirmDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (!confirmDeleteId) return;
+    await deliverablesApi.delete(confirmDeleteId);
+    setConfirmDeleteId(null);
     reload();
   }
 
@@ -118,6 +124,17 @@ export function DeliverableTreePage() {
           deliverable={taskDeliverable}
           onClose={() => setTaskDeliverable(null)}
         />
+      )}
+
+      {confirmDeleteId && (
+        <Modal title="Delete deliverable?" onClose={() => setConfirmDeleteId(null)} footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+            <Button variant="danger" onClick={confirmDelete}>Delete</Button>
+          </div>
+        }>
+          <p>This will permanently delete the deliverable and all its children. This action cannot be undone.</p>
+        </Modal>
       )}
     </div>
   );
