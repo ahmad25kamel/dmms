@@ -810,12 +810,20 @@ function TaskDetailModal({ task, users, onClose, onUpdated, onDeleted }: {
                             )}
                           </p>
                           {c.file_uploads && JSON.parse(c.file_uploads).length > 0 && (
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                              {JSON.parse(c.file_uploads).map((path: string, i: number) => (
-                                <a key={i} href={path} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--kamel-blue)', textDecoration: 'none', background: 'var(--bg-3)', padding: '2px 6px', borderRadius: 10, border: '1px solid var(--border-1)' }}>
-                                  📎 {i + 1}
-                                </a>
-                              ))}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                              {JSON.parse(c.file_uploads).map((path: string, i: number) => {
+                                const filename = path.split('/').pop() || path;
+                                const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(filename);
+                                return isImage ? (
+                                  <a key={i} href={path} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
+                                    <img src={path} alt={filename} style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-1)', display: 'block' }} />
+                                  </a>
+                                ) : (
+                                  <a key={i} href={path} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--kamel-blue)', textDecoration: 'none', background: 'var(--bg-3)', padding: '3px 8px', borderRadius: 10, border: '1px solid var(--border-1)', display: 'inline-flex', alignItems: 'center', gap: 4, width: 'fit-content' }}>
+                                    📎 {filename}
+                                  </a>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
