@@ -44,7 +44,8 @@ echo "👤 User: $USER"
 echo "🌐 Port: $PORT"
 
 # 4. Build the application
-echo "📦 Building application artifacts..."
+echo "📦 Installing dependencies and building artifacts..."
+npm ci
 npm run build
 npm run build:mcp
 echo "🐹 Building Go backend..."
