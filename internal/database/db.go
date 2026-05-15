@@ -29,6 +29,19 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 }
 
 func runMigrations(db *gorm.DB) error {
+	// Add username column without unique constraint first, so we can backfill
+	if db.Migrator().HasColumn(&models.User{}, "username") == false {
+		if err := db.Exec("ALTER TABLE dmms_users ADD COLUMN username VARCHAR(30) NOT NULL DEFAULT ''").Error; err != nil {
+			// Column may already exist without constraint — continue
+			log.Println("username column add:", err)
+		}
+	}
+
+	// Backfill empty usernames from id prefix to satisfy uniqueness
+	if err := db.Exec(`UPDATE dmms_users SET username = CONCAT('user_', SUBSTRING(id,1,8)) WHERE username = ''`).Error; err != nil {
+		log.Println("username backfill:", err)
+	}
+
 	return db.AutoMigrate(
 		&models.User{},
 		&models.Project{},
@@ -39,5 +52,7 @@ func runMigrations(db *gorm.DB) error {
 		&models.Submission{},
 		&models.RewardLedgerEntry{},
 		&models.TaskMember{},
+		&models.CommentMention{},
+		&models.Notification{},
 	)
 }
