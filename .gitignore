@@ -47,7 +47,14 @@ next-env.d.ts
 .claude/
 dist/
 bookmarks-api
+# ignore data json files in root but keep configs
 /*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.mcp.json
+!tsconfig.node.json
+!tsconfig.tsbuildinfo
 /dmms-server
 /dmms
 uploads/
