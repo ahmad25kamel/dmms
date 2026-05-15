@@ -45,6 +45,13 @@ next-env.d.ts
 *.db-shm
 *.db-wal
 .claude/
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/*/
+.claude/skills/*/*
+!.claude/skills/*/SKILL.md
 dist/
 bookmarks-api
 # ignore data json files in root but keep configs
