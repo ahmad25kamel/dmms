@@ -8,7 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: RaspberryProd
+    environment: HotamaDev
     steps:
       - name: Validate secrets
         env:
@@ -23,7 +23,7 @@ jobs:
           [ -z "$_SSH_USERNAME" ] && MISSING+=("SSH_USERNAME")
           [ -z "$_DEPLOY_PATH"  ] && MISSING+=("DEPLOY_PATH")
           if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "❌ Deployment aborted — the following secrets are not set in the RaspberryProd environment:"
+            echo "❌ Deployment aborted — the following secrets are not set in the HotamaDev environment:"
             for s in "${MISSING[@]}"; do echo "   • $s"; done
             exit 1
           fi
