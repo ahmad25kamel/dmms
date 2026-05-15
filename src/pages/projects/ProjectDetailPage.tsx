@@ -17,6 +17,7 @@ export function ProjectDetailPage() {
   const [editForm, setEditForm] = useState<Partial<Project>>({});
   const [editSaving, setEditSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -128,6 +129,17 @@ export function ProjectDetailPage() {
 
   const handleDeleteProject = () => setConfirmDelete(true);
 
+  const doCompleteProject = async () => {
+    if (!projectId) return;
+    setConfirmComplete(false);
+    try {
+      await projectsApi.update(projectId, { status: 'completed' });
+      loadData();
+    } catch (err) {
+      setError('Failed to complete project');
+    }
+  };
+
   const doDeleteProject = async () => {
     if (!projectId) return;
     setConfirmDelete(false);
@@ -163,6 +175,9 @@ export function ProjectDetailPage() {
               </Button>
               <Button variant="secondary" onClick={handleEditOpen}>Edit Project</Button>
               <Button variant="ghost" onClick={handleDownloadTemplate}>Template</Button>
+              {project.status === 'active' && (
+                <Button variant="secondary" onClick={() => setConfirmComplete(true)}>Mark Completed</Button>
+              )}
               <Button variant="danger" onClick={handleDeleteProject}>Delete Project</Button>
             </>
           )}
@@ -273,6 +288,17 @@ export function ProjectDetailPage() {
               </FormField>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {confirmComplete && (
+        <Modal title="Mark project as completed?" onClose={() => setConfirmComplete(false)} footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setConfirmComplete(false)}>Cancel</Button>
+            <Button onClick={doCompleteProject}>Mark Completed</Button>
+          </div>
+        }>
+          <p>This will move the project to <strong>completed</strong> status. Make sure all deliverables are approved before closing out.</p>
         </Modal>
       )}
 
