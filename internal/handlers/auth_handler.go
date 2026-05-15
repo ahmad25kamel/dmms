@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 
 	"dmms/internal/middleware"
@@ -9,6 +10,8 @@ import (
 	"dmms/internal/repository"
 	"dmms/internal/service"
 )
+
+var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
 type AuthHandler struct {
 	auth  *service.AuthService
@@ -21,6 +24,7 @@ func NewAuthHandler(auth *service.AuthService, users *repository.UserRepo) *Auth
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		Username string      `json:"username"`
 		Email    string      `json:"email"`
 		Name     string      `json:"name"`
 		Password string      `json:"password"`
@@ -30,9 +34,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	body.Username = strings.TrimSpace(body.Username)
 	body.Email = strings.TrimSpace(strings.ToLower(body.Email))
-	if body.Email == "" || body.Password == "" || body.Name == "" {
-		Err(w, http.StatusBadRequest, "email, name, and password are required")
+	if body.Username == "" || body.Password == "" || body.Name == "" {
+		Err(w, http.StatusBadRequest, "username, name, and password are required")
+		return
+	}
+	if !usernameRe.MatchString(body.Username) {
+		Err(w, http.StatusBadRequest, "username must be 3-30 alphanumeric characters or underscores")
 		return
 	}
 	if len(body.Password) < 8 {
@@ -40,11 +49,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.Role != models.RolePM && body.Role != models.RoleContributor {
-		body.Role = models.RoleContributor
+		Err(w, http.StatusBadRequest, "role must be 'pm' or 'contributor'")
+		return
 	}
-	u, err := h.auth.Register(body.Email, body.Name, body.Password, body.Role)
+	u, err := h.auth.Register(body.Username, body.Email, body.Name, body.Password, body.Role)
 	if err != nil {
-		Err(w, http.StatusConflict, "email already in use")
+		Err(w, http.StatusConflict, "username already in use")
 		return
 	}
 	JSON(w, http.StatusCreated, u)
@@ -52,19 +62,19 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Email    string `json:"email"`
+		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 	if err := Decode(r, &body); err != nil {
 		Err(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	u, token, err := h.auth.Login(body.Email, body.Password)
+	u, token, err := h.auth.Login(body.Username, body.Password)
 	if err != nil {
 		Err(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	JSON(w, http.StatusOK, map[string]interface{}{"user": u, "token": token})
+	JSON(w, http.StatusOK, map[string]any{"user": u, "token": token})
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {

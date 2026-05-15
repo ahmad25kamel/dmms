@@ -27,16 +27,17 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func (s *AuthService) Register(email, name, password string, role models.Role) (*models.User, error) {
+func (s *AuthService) Register(username, email, name, password string, role models.Role) (*models.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 	u := &models.User{
-		ID:    uuid.New().String(),
-		Email: email,
-		Name:  name,
-		Role:  role,
+		ID:       uuid.New().String(),
+		Username: username,
+		Email:    email,
+		Name:     name,
+		Role:     role,
 	}
 	if err := s.users.Create(u, string(hash)); err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
@@ -44,8 +45,8 @@ func (s *AuthService) Register(email, name, password string, role models.Role) (
 	return u, nil
 }
 
-func (s *AuthService) Login(email, password string) (*models.User, string, error) {
-	u, hash, err := s.users.FindByEmail(email)
+func (s *AuthService) Login(username, password string) (*models.User, string, error) {
+	u, hash, err := s.users.FindByUsername(username)
 	if err != nil {
 		return nil, "", fmt.Errorf("invalid credentials")
 	}

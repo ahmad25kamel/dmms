@@ -6,8 +6,8 @@ import { setToken, clearToken } from '../api/client';
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, name: string, password: string, role: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  register: (username: string, name: string, password: string, role: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -35,15 +35,15 @@ export function useAuthState(): AuthState {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { user: u, token } = await authApi.login({ email, password });
+  const login = useCallback(async (username: string, password: string) => {
+    const { user: u, token } = await authApi.login({ username, password });
     setToken(token);
     setUser(u);
   }, []);
 
-  const register = useCallback(async (email: string, name: string, password: string, role: string) => {
-    await authApi.register({ email, name, password, role });
-    await login(email, password);
+  const register = useCallback(async (username: string, name: string, password: string, role: string) => {
+    await authApi.register({ username, name, password, role });
+    await login(username, password);
   }, [login]);
 
   const logout = useCallback(() => {

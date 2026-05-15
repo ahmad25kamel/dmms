@@ -2,6 +2,7 @@ export type Role = 'pm' | 'contributor' | 'admin';
 
 export interface User {
   id: string;
+  username: string;
   email: string;
   name: string;
   role: Role;

@@ -6,7 +6,7 @@ import { Button, Input, FormField, Alert } from '../../components/ui';
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(username, password);
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -37,8 +37,8 @@ export function LoginPage() {
         </div>
         <h2 style={{ marginBottom: 20 }}>Sign in</h2>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <FormField label="Email">
-            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required />
+          <FormField label="Username">
+            <Input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="your_username" autoComplete="username" required />
           </FormField>
           <FormField label="Password">
             <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />

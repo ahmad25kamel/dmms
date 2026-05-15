@@ -6,7 +6,7 @@ import { Button, Input, Select, FormField, Alert } from '../../components/ui';
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', name: '', password: '', role: 'contributor' });
+  const [form, setForm] = useState({ username: '', name: '', password: '', role: 'contributor' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -20,7 +20,7 @@ export function RegisterPage() {
     if (form.password.length < 8) { setError('Password must be at least 8 characters'); return; }
     setLoading(true);
     try {
-      await register(form.email, form.name, form.password, form.role);
+      await register(form.username, form.name, form.password, form.role);
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -41,11 +41,11 @@ export function RegisterPage() {
         </div>
         <h2 style={{ marginBottom: 20 }}>Create account</h2>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <FormField label="Username" hint="3–30 characters, letters, numbers, underscores only">
+            <Input value={form.username} onChange={e => set('username', e.target.value)} placeholder="jane_smith" autoComplete="username" pattern="[a-zA-Z0-9_]{3,30}" required />
+          </FormField>
           <FormField label="Full name">
             <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Jane Smith" required />
-          </FormField>
-          <FormField label="Email">
-            <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="you@example.com" required />
           </FormField>
           <FormField label="Password">
             <Input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Min 8 characters" required />

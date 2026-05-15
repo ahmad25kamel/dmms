@@ -49,7 +49,7 @@ export function AdminPage() {
                   <span style={{ fontWeight: 500 }}>{u.name}</span>
                   <Badge color={u.role === 'pm' ? 'indigo' : u.role === 'admin' ? 'red' : 'gray'}>{u.role}</Badge>
                 </div>
-                <p className="meta">{u.email} · Joined {formatDate(u.created_at)}</p>
+                <p className="meta">@{u.username}{u.email ? ` · ${u.email}` : ''} · Joined {formatDate(u.created_at)}</p>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button size="sm" variant="secondary" onClick={() => { setEditUser(u); setNewRole(u.role); }}>Change Role</Button>

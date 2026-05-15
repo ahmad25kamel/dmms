@@ -6,9 +6,9 @@ import type {
 
 // Auth
 export const authApi = {
-  register: (body: { email: string; name: string; password: string; role: string }) =>
+  register: (body: { username: string; email?: string; name: string; password: string; role: string }) =>
     api.post<User>('/auth/register', body),
-  login: (body: { email: string; password: string }) =>
+  login: (body: { username: string; password: string }) =>
     api.post<{ user: User; token: string }>('/auth/login', body),
   me: () => api.get<User>('/auth/me'),
 };

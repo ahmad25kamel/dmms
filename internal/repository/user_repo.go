@@ -35,6 +35,17 @@ func (r *UserRepo) FindByEmail(email string) (*models.User, string, error) {
 	return &u, u.PasswordHash, nil
 }
 
+func (r *UserRepo) FindByUsername(username string) (*models.User, string, error) {
+	var u models.User
+	if err := r.db.Where("username = ?", username).First(&u).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, "", fmt.Errorf("user not found")
+		}
+		return nil, "", err
+	}
+	return &u, u.PasswordHash, nil
+}
+
 func (r *UserRepo) FindByID(id string) (*models.User, error) {
 	var u models.User
 	if err := r.db.First(&u, "id = ?", id).Error; err != nil {
