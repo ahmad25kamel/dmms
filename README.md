@@ -72,17 +72,17 @@ npm install
 ### 3. Configure environment
 
 ```bash
-cp .env.dmms.example .env.dmms
+cp .env.example .env
 ```
 
-Edit `.env.dmms` and fill in your values — at minimum set `DMMS_JWT_SECRET` and your MySQL credentials. The server will refuse to start without a JWT secret.
+Edit `.env` and fill in your values — at minimum set `DMMS_JWT_SECRET` and your MySQL credentials. The server will refuse to start without a JWT secret.
 
 ### 4. Start development servers
 
 **Terminal 1 — Go backend (port 3005)**
 
 ```bash
-source .env.dmms
+source .env
 go run ./cmd/dmms
 ```
 
@@ -110,7 +110,7 @@ Everything compiles into a single self-contained binary:
 npm run build
 npm run build:mcp
 go build -o dmms-server ./cmd/dmms
-source .env.dmms && ./dmms-server
+source .env && ./dmms-server
 ```
 
 The server listens on `DMMS_PORT` (default `3005`) and serves both the API at `/api/dmms/` and the React SPA at `/`.
@@ -153,7 +153,7 @@ The server listens on `DMMS_PORT` (default `3005`) and serves both the API at `/
 │   ├── pages/             # Route-level page components
 │   ├── store/             # Auth context
 │   └── types/             # TypeScript types mirroring Go models
-├── .env.dmms.example      # Environment template
+├── .env.example      # Environment template
 ├── start-dmms.sh          # One-command production build + start
 └── Makefile               # Common dev tasks
 ```

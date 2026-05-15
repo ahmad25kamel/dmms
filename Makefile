@@ -10,14 +10,14 @@ build:
 	go mod tidy
 	@echo "Building Go binary..."
 	go build -ldflags="-s -w" -o dmms-server ./cmd/dmms
-	@echo "Build complete. Run: source .env.dmms && ./dmms-server"
+	@echo "Build complete. Run: source .env && ./dmms-server"
 
 # Remove build artifacts
 clean:
 	rm -f dmms-server
 	rm -rf dist dist-mcp
 
-# Run Go backend in development mode (requires .env.dmms to be sourced)
+# Run Go backend in development mode (requires .env to be sourced)
 dev-backend:
 	go run ./cmd/dmms
 

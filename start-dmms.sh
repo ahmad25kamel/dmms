@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-if [ ! -f ".env.dmms" ]; then
-  echo "Create .env.dmms first (copy from .env.dmms example)"
+if [ ! -f ".env" ]; then
+  echo "Create .env first (copy from .env example)"
   exit 1
 fi
 
-source .env.dmms
+source .env
 
 echo "Building Go backend..."
 go build -o dmms-server ./cmd/dmms/...

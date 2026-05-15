@@ -13,7 +13,7 @@ Three roles: **PM** (create projects, review bids, approve submissions), **Contr
 ### Backend (Go)
 
 ```bash
-source .env.dmms        # load env vars first
+source .env        # load env vars first
 go run ./cmd/dmms       # dev server on :3005
 go build -o dmms-server ./cmd/dmms   # production build
 ```
@@ -32,7 +32,7 @@ npm run build:mcp       # compile MCP server → dist-mcp/index.js
 ./start-dmms.sh         # builds Go + frontend + MCP, then starts server
 # OR manually:
 npm run build && npm run build:mcp && go build -o dmms-server ./cmd/dmms
-source .env.dmms && ./dmms-server
+source .env && ./dmms-server
 
 # To deploy as a systemd service (Linux):
 ./scripts/deploy-service.sh
@@ -41,7 +41,7 @@ source .env.dmms && ./dmms-server
 ### Environment Setup
 
 ```bash
-cp .env.dmms.example .env.dmms   # then edit
+cp .env.example .env   # then edit
 # Required: DMMS_JWT_SECRET
 # DB_*: MySQL connection settings (DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD)
 # DMMS_PORT defaults to 3005

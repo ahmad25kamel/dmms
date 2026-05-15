@@ -1,11 +1,11 @@
 #!/bin/bash
 # scripts/deploy-service.sh
-# Deploys DMMS as a systemd service using settings from .env.dmms
+# Deploys DMMS as a systemd service using settings from .env
 
 set -e
 
 APP_NAME="dmms"
-ENV_FILE=".env.dmms"
+ENV_FILE=".env"
 SERVICE_FILE="/etc/systemd/system/${APP_NAME}.service"
 WORKING_DIR=$(pwd)
 USER=$(whoami)
@@ -13,7 +13,7 @@ USER=$(whoami)
 # 1. Check for .env file
 if [ ! -f "$ENV_FILE" ]; then
     echo "❌ Error: $ENV_FILE not found in $WORKING_DIR"
-    echo "Please create it first (e.g., cp .env.dmms.example .env.dmms)"
+    echo "Please create it first (e.g., cp .env.example .env)"
     exit 1
 fi
 

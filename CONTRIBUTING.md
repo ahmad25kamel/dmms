@@ -22,7 +22,7 @@ Follow the [Getting Started guide in the README](README.md#getting-started). Onc
 
 ```bash
 # Terminal 1: backend
-source .env.dmms && go run ./cmd/dmms
+source .env && go run ./cmd/dmms
 
 # Terminal 2: frontend
 npm run dev

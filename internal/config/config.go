@@ -22,8 +22,8 @@ type Config struct {
 }
 
 func Load() *Config {
-	// Try to load .env.dmms if it exists
-	_ = godotenv.Load(".env.dmms")
+	// Try to load .env if it exists
+	_ = godotenv.Load(".env")
 
 	secret := os.Getenv("DMMS_JWT_SECRET")
 	if secret == "" {
