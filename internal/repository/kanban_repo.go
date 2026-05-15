@@ -167,3 +167,10 @@ func (r *KanbanRepo) CreateComment(c *models.KanbanComment) error {
 func (r *KanbanRepo) DeleteComment(id string) error {
 	return r.db.Delete(&models.TaskComment{}, "id = ?", id).Error
 }
+
+func (r *KanbanRepo) SaveMentions(mentions []*models.CommentMention) error {
+	if len(mentions) == 0 {
+		return nil
+	}
+	return r.db.Create(&mentions).Error
+}

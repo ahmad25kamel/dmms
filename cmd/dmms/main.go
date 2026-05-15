@@ -47,7 +47,7 @@ func main() {
 	marketH := handlers.NewMarketplaceHandler(deliverableRepo)
 	rewardH := handlers.NewRewardHandler(rewardRepo)
 	adminH := handlers.NewAdminHandler(userRepo)
-	kanbanH := handlers.NewKanbanHandler(taskRepo, kanbanRepo)
+	kanbanH := handlers.NewKanbanHandler(taskRepo, kanbanRepo, userRepo)
 
 	// Auth middleware
 	authMW := middleware.Auth(authSvc)

@@ -169,6 +169,15 @@ type TaskMember struct {
 
 func (TaskMember) TableName() string { return "dmms_task_members" }
 
+type CommentMention struct {
+	ID        string    `json:"id" gorm:"primaryKey;size:191"`
+	CommentID string    `json:"comment_id" gorm:"column:comment_id;not null;size:191;index"`
+	UserID    string    `json:"user_id" gorm:"column:user_id;not null;size:191;index"`
+	Username  string    `json:"username" gorm:"column:username;not null;size:30"`
+	CreatedAt time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
+}
+
+func (CommentMention) TableName() string { return "dmms_comment_mentions" }
 
 type SubmissionStatus string
 

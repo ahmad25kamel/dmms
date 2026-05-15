@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -16,13 +17,16 @@ import (
 	"github.com/google/uuid"
 )
 
+var mentionRe = regexp.MustCompile(`@([a-zA-Z0-9_]{3,30})`)
+
 type KanbanHandler struct {
 	tasks  *repository.TaskRepo
 	kanban *repository.KanbanRepo
+	users  *repository.UserRepo
 }
 
-func NewKanbanHandler(tasks *repository.TaskRepo, kanban *repository.KanbanRepo) *KanbanHandler {
-	return &KanbanHandler{tasks: tasks, kanban: kanban}
+func NewKanbanHandler(tasks *repository.TaskRepo, kanban *repository.KanbanRepo, users *repository.UserRepo) *KanbanHandler {
+	return &KanbanHandler{tasks: tasks, kanban: kanban, users: users}
 }
 
 type taskListResponse struct {
@@ -292,6 +296,32 @@ func (h *KanbanHandler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to create comment")
 		return
 	}
+
+	// Parse @mentions and store in junction table
+	matches := mentionRe.FindAllStringSubmatch(body.Body, -1)
+	if len(matches) > 0 {
+		seen := map[string]bool{}
+		var mentions []*models.CommentMention
+		for _, m := range matches {
+			uname := m[1]
+			if seen[uname] {
+				continue
+			}
+			seen[uname] = true
+			u, _, err := h.users.FindByUsername(uname)
+			if err != nil || u == nil {
+				continue
+			}
+			mentions = append(mentions, &models.CommentMention{
+				ID:        uuid.New().String(),
+				CommentID: newComment.ID,
+				UserID:    u.ID,
+				Username:  uname,
+			})
+		}
+		_ = h.kanban.SaveMentions(mentions)
+	}
+
 	JSON(w, http.StatusCreated, newComment)
 }
 
