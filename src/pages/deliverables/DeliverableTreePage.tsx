@@ -204,8 +204,10 @@ function DeliverableNode({ deliverable: d, depth, projectId, onAddChild, onEdit,
               {(d.status === 'open_for_bids' || d.status === 'draft') && (
                 <Button size="sm" variant="ghost" onClick={() => onCancel(d.id)}>Cancel</Button>
               )}
-              {d.status === 'cancelled' && (
-                <Button size="sm" variant="ghost" onClick={() => onReopen(d.id)}>Reopen</Button>
+              {(d.status === 'cancelled' || d.status === 'rejected') && (
+                <Button size="sm" variant="ghost" onClick={() => d.status === 'rejected' ? onReassign(d.id) : onReopen(d.id)}>
+                  Reopen for Bids
+                </Button>
               )}
               {(d.status === 'assigned' || d.status === 'in_progress') && (
                 <Button size="sm" variant="ghost" onClick={() => onReassign(d.id)}>Reassign</Button>
