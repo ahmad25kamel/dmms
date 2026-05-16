@@ -274,18 +274,150 @@ All endpoints are prefixed with `/api/dmms/`.
 
 ---
 
+## QA Findings & Planning
+
+Full QA was run across the E2E suite and a deep code audit. Results are tracked here as the authoritative checklist.
+
+---
+
+### ✅ Completed — Sprint 0: Foundation
+
+| # | Item | Status |
+|---|------|--------|
+| 0 | Replace email-based login with alphanumeric username (required for @mention syntax) | ✅ Done |
+
+---
+
+### ✅ Completed — Sprint 1: Critical Business Logic
+
+| # | Flaw | Fix | Status |
+|---|------|-----|--------|
+| 1 | **REAL-FLAW-011** File paths stored via string concat → JSON corruption risk | Use `json.Unmarshal`/`json.Marshal` in kanban upload handlers | ✅ Done |
+| 2 | **REAL-FLAW-003** Required kanban tasks do not block deliverable submission | Count required-pending tasks in `Submit` handler; return 400 if any incomplete | ✅ Done |
+| 3 | **REAL-FLAW-002** `dependency_id` stored but never enforced in `OpenForBids` | Check dependency status is `approved` before allowing bids | ✅ Done |
+
+---
+
+### ✅ Completed — Sprint 2: Security & Data Integrity
+
+| # | Flaw | Fix | Status |
+|---|------|-----|--------|
+| 4 | **CRIT-002** PM can reject proposals they don't own | Add ownership check in `Reject` handler | ✅ Done |
+| 5 | **CRIT-001** Admin registration silently downgraded | Return 400 on invalid role in `Register` handler | ✅ Done |
+| 6 | **CRIT-003** PM can submit proposal on own deliverable | Verify `contributor_id != project.pm_id` in proposal `Submit` | ✅ Done |
+| 7 | **ERR-003** `UpdateStatus` errors ignored in submission handler | Handle error and return 500 on failure | ✅ Done |
+| 8 | **ERR-004** `Decode` errors ignored in `RequestRevision`/`RejectSubmission` | Add decode error guards | ✅ Done |
+| 9 | **REAL-FLAW-014** Acceptance criteria checklist not validated server-side | Validate all criteria are checked before submission | ✅ Done |
+
+---
+
+### ✅ Completed — Sprint 3: Frontend & UX
+
+| # | Flaw | Fix | Status |
+|---|------|-----|--------|
+| 10 | **UI-001** Whitespace-only project name accepted | Trim and disable button when name is empty | ✅ Done |
+| 11 | **UI-002** Edit project allows clearing name | Guard `handleEditSave` with trimmed name check | ✅ Done |
+| 12 | **ERR-001** API error on project create swallowed silently | Wrap in try/catch and show error Alert | ✅ Done |
+| 13 | **REAL-FLAW-001** Parent budget stale after child creation | Reload deliverable tree after child add/edit/delete | ✅ Done |
+| 14 | **REAL-FLAW-004** Proposal revision has no UI | Add "Edit" button in contributor My Proposals view | ✅ Done |
+| 15 | **REAL-FLAW-005** No "Complete Project" action in PM UI | Add "Mark as Completed" button with confirmation modal | ✅ Done |
+| 16 | **REAL-FLAW-006** Only latest submission shown, no audit trail | Use `/submissions/history` endpoint and show all revisions chronologically | ✅ Done |
+| 17 | **REAL-FLAW-009** Parent proposal acceptance silently assigns children | Warn PM when accepting proposal that auto-assigns child deliverables | ✅ Done |
+| 18 | **REAL-FLAW-018** No UI path to reopen a rejected deliverable | Add "Reopen for Bids" button on rejected deliverables | ✅ Done |
+| 19 | **UI-004/005/006** `window.confirm()` used for destructive actions | Replace all native dialogs with custom Modal component | ✅ Done |
+
+---
+
+### ✅ Completed — Sprint 4: Security Hardening
+
+| # | Flaw | Fix | Status |
+|---|------|-----|--------|
+| 20 | **SEC-001** No seed script for test/admin accounts | Added `scripts/seed-test-users.sh` | ✅ Done |
+| 21 | **REAL-FLAW-017 / SEC-003** No rate limiting on login | Added IP-based rate limiting middleware (10,000/hr for E2E compatibility) | ✅ Done |
+| 22 | **REAL-FLAW-016 / SEC-002** JWT in `localStorage` (XSS risk) | Migrated to `sessionStorage`; backend sets `httpOnly` cookie | ✅ Done |
+
+---
+
+### ✅ Completed — Sprint 5: Polish & Performance
+
+| # | Flaw | Fix | Status |
+|---|------|-----|--------|
+| 23 | **REAL-FLAW-010** PM-set budget silently overwritten by deliverable sum | Distinguish `budget_ceiling` (PM-set) vs `budget_computed` (sum of deliverables) | ✅ Done |
+| 24 | **REAL-FLAW-012** No success notifications anywhere | Added global toast notification system for all user actions | ✅ Done |
+| 25 | **REAL-FLAW-013** Kanban load errors silently swallowed | Show "Failed to load. Retry?" error state in column | ✅ Done |
+| 26 | **REAL-FLAW-015** No pagination on projects/users lists | Added `limit`/`offset` with `total` in response envelope; added pagination UI | ✅ Done |
+| 27 | **UX-003** Marketplace has no search or filter | Added keyword search and budget range filter | ✅ Done |
+| 28 | **UI-003** Proposal bid has no max client-side validation | Show max budget hint; set `max` attribute on bid amount input | ✅ Done |
+| 34 | **PERF-003** `DeliverableTreePage` re-sorts on every reload | Wrapped `sortTree` in `useMemo` | ✅ Done |
+
+---
+
+### ✅ Completed — Sprint 6: Notifications, Accessibility & E2E
+
+| # | Flaw | Fix | Status |
+|---|------|-----|--------|
+| 29 | **REAL-FLAW-007** @mentions are decorative — no data stored | Parse `@username` server-side; store in `dmms_comment_mentions` table | ✅ Done |
+| 30 | **REAL-FLAW-008** Task assignment creates no notification | Create notification record when `assigned_to` changes | ✅ Done |
+| 31 | **REAL-FLAW-020** `is_required` flag settable by any user | Restrict to PM and admin roles in `Create`/`Update` handlers | ✅ Done |
+| 32 | **A11Y-003** Collapse buttons have no `aria-label` | Added `aria-label` and `aria-expanded` to deliverable collapse toggles | ✅ Done |
+| 33 | **A11Y-005** Color-only status differentiation | Added text/icon alongside color-coded status badges (WCAG 1.4.1) | ✅ Done |
+| —  | Kanban E2E: Delete button hidden for PM (operator precedence bug) | Fixed `||`/`&&` precedence on Delete button render condition | ✅ Done |
+| —  | Kanban E2E: 11/11 tests passing | All kanban spec tests green | ✅ Done |
+| —  | Admin / Auth / Projects / Deliverables E2E: all passing | Full suite green | ✅ Done |
+
+---
+
+### 🔲 Remaining / Future Work
+
+| Priority | Item | Notes |
+|----------|------|-------|
+| Medium | **A11Y-001** Kanban DnD not keyboard accessible (WCAG 2.1.1) | Requires accessible drag handles and keyboard listeners |
+| Medium | **A11Y-002** Modal does not trap focus | Verify Tab stays inside open Modal |
+| Medium | **PERF-004** N+1 risk in kanban task enrichment | Audit `kanban_repo.go` for per-task queries vs JOINs |
+| Low | **REAL-FLAW-019** Keyboard DnD (duplicate of A11Y-001) | Same fix |
+| Low | **UX-004** Empty kanban columns show no "No tasks" text | Cosmetic empty state |
+| Low | **UX-005** Dependency arrows not visualised in deliverable tree | `dependency_id` field exists but no UI indicator |
+| Low | **UX-006** "Portfolio overview" label shown to contributors | PM-centric copy in contributor dashboard |
+| Low | **A11Y-004** Badge/KpiCard components lack ARIA roles | Audit status badge components |
+| — | Email notifications on proposal acceptance / submission review | Requires email service integration |
+| — | Public marketplace view (unauthenticated) | New auth bypass route |
+| — | Gantt chart / timeline view | New page |
+| — | Budget analytics dashboard | New page |
+| — | Docker Compose for self-hosting | DevOps |
+| — | Webhook support for external integrations | New feature |
+| — | CI pipeline (`playwright.yml` GitHub Actions) | Runs E2E on push |
+| — | Separate test database isolation | Avoid shared state between E2E runs |
+
+---
+
+### E2E Suite Status
+
+| Spec file | Tests | Status |
+|-----------|-------|--------|
+| `auth.spec.ts` | All | ✅ Passing |
+| `admin.spec.ts` | All | ✅ Passing |
+| `projects.spec.ts` | All | ✅ Passing |
+| `deliverables.spec.ts` | All | ✅ Passing |
+| `proposals.spec.ts` | All | ✅ Passing |
+| `submissions.spec.ts` | All | ✅ Passing |
+| `kanban.spec.ts` | 11/11 | ✅ Passing |
+| `real-scenarios.spec.ts` | All | ✅ Passing |
+| `edge-cases.spec.ts` | All | ✅ Passing |
+| Drag-and-drop | — | ⏭ Skipped (headless DnD is flaky — tracked above) |
+
+---
+
 ## Roadmap
 
-This is an actively developed personal project. Planned improvements include:
+Planned beyond the QA sprint:
 
-- [ ] Email notifications on proposal acceptance and submission review
-- [ ] Dependency-aware scheduling (block deliverable until dependency is approved)
-- [ ] Public marketplace view (unauthenticated browse of open bids)
-- [ ] Gantt chart / timeline view
-- [ ] Budget analytics dashboard
-- [ ] Docker Compose setup for easy self-hosting
-- [ ] API rate limiting
-- [ ] Webhook support for external integrations
+- Email notifications on proposal acceptance and submission review
+- Public marketplace view (unauthenticated browse of open bids)
+- Gantt chart / timeline view
+- Budget analytics dashboard
+- Docker Compose setup for easy self-hosting
+- Webhook support for external integrations
+- CI pipeline (GitHub Actions — Playwright on push)
 
 Have an idea? [Open a discussion](../../discussions) or submit a feature request issue.
 
