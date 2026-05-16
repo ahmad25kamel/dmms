@@ -66,3 +66,6 @@ bookmarks-api
 /dmms
 uploads/
 .fuse_hidden*
+test-results/
+playwright-results.xml
+playwright-report/index.html
