@@ -89,10 +89,11 @@ test.describe('Admin — User Management', () => {
     const adminPage = new AdminPage(page);
     await adminPage.goto();
 
-    page.once('dialog', d => d.accept());
     await adminPage.deleteUser(`Delete Me ${suffix}`);
+    // Custom modal — click confirm button
+    await page.locator('button', { hasText: 'Delete User' }).click();
 
-    await expect(page.locator(`text=Delete Me ${suffix}`)).not.toBeVisible({ timeout: 8000 });
+    await expect(page.locator('li').filter({ hasText: `Delete Me ${suffix}` })).toHaveCount(0, { timeout: 8000 });
   });
 
   test('Cancel delete dialog keeps the user', async ({ page }) => {
@@ -108,8 +109,9 @@ test.describe('Admin — User Management', () => {
     const adminPage = new AdminPage(page);
     await adminPage.goto();
 
-    page.once('dialog', d => d.dismiss());
     await adminPage.deleteUser(`Keep Me ${suffix}`);
+    // Custom modal — click Cancel to dismiss
+    await page.locator('button', { hasText: 'Cancel' }).last().click();
 
     await expect(page.locator(`text=Keep Me ${suffix}`)).toBeVisible({ timeout: 5000 });
   });

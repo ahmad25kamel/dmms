@@ -127,9 +127,9 @@ test.describe('Projects — PM flows', () => {
 
     await page.goto(`/projects/${project.id}`);
 
-    // Listen for the browser confirm dialog and accept it
-    page.once('dialog', dialog => dialog.accept());
-    await page.locator('button', { hasText: 'Delete Project' }).click();
+    await page.locator('button', { hasText: 'Delete Project' }).first().click();
+    // Custom modal — confirm deletion
+    await page.locator('button', { hasText: 'Delete Project' }).last().click();
 
     // Should redirect to projects list
     await expect(page).toHaveURL('/projects', { timeout: 8000 });
@@ -141,8 +141,9 @@ test.describe('Projects — PM flows', () => {
 
     await page.goto(`/projects/${project.id}`);
 
-    page.once('dialog', dialog => dialog.dismiss());
-    await page.locator('button', { hasText: 'Delete Project' }).click();
+    await page.locator('button', { hasText: 'Delete Project' }).first().click();
+    // Custom modal — cancel to dismiss
+    await page.locator('button', { hasText: 'Cancel' }).last().click();
 
     await expect(page).toHaveURL(`/projects/${project.id}`);
 

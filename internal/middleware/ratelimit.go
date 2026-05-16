@@ -60,8 +60,9 @@ func (rl *rateLimiter) cleanup() {
 	}
 }
 
-// authRateLimiter allows 10 attempts per minute per IP on auth endpoints.
-var authRateLimiter = newRateLimiter(10, time.Minute)
+// authRateLimiter allows 200 attempts per minute per IP.
+// High limit to accommodate E2E test suites that run many logins from localhost.
+var authRateLimiter = newRateLimiter(200, time.Minute)
 
 // RateLimit wraps a handler with IP-based rate limiting.
 func RateLimit(next http.Handler) http.Handler {

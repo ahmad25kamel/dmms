@@ -35,7 +35,8 @@ export class AdminPage {
 
   async deleteUser(userName: string) {
     const row = this.page.locator('li').filter({ hasText: userName }).first();
-    await row.locator('button[title*="delete"], button svg').last().click();
+    // Click the last button in the row (the danger/delete button)
+    await row.locator('button').last().click();
   }
 
   async expectUserCount(count: number) {

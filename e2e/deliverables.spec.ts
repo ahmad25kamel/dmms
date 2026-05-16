@@ -130,8 +130,9 @@ test.describe('Deliverable Tree — PM flows', () => {
     const treePage = new DeliverableTreePage(page);
     await treePage.goto(project.id);
 
-    page.once('dialog', dialog => dialog.accept());
     await treePage.clickDeleteDeliverable(deliverable.title);
+    // Custom modal — confirm deletion
+    await page.locator('button', { hasText: 'Delete' }).last().click();
 
     await expect(page.locator(`text=${deliverable.title}`)).not.toBeVisible({ timeout: 8000 });
   });
