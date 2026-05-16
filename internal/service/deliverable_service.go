@@ -300,6 +300,18 @@ func (s *DeliverableService) BuildTree(projectID string) ([]*models.Deliverable,
 	if err != nil {
 		return nil, err
 	}
+
+	counts, err := s.proposals.CountByProject(projectID)
+	if err == nil {
+		countMap := make(map[string]int, len(counts))
+		for _, c := range counts {
+			countMap[c.DeliverableID] = c.Count
+		}
+		for _, d := range all {
+			d.ProposalCount = countMap[d.ID]
+		}
+	}
+
 	return buildTree(all), nil
 }
 

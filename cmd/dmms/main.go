@@ -99,6 +99,7 @@ func main() {
 	mux.Handle("GET /api/dmms/deliverables/{id}/proposals", authMW(pmOnly(http.HandlerFunc(proposalH.List))))
 	mux.Handle("POST /api/dmms/deliverables/{id}/proposals", authMW(http.HandlerFunc(proposalH.Submit)))
 	mux.Handle("GET /api/dmms/proposals/mine", authMW(http.HandlerFunc(proposalH.Mine)))
+	mux.Handle("GET /api/dmms/proposals/all", authMW(pmOnly(http.HandlerFunc(proposalH.AllForPM))))
 	mux.Handle("PATCH /api/dmms/proposals/{id}", authMW(http.HandlerFunc(proposalH.Revise)))
 	mux.Handle("POST /api/dmms/proposals/{id}/withdraw", authMW(http.HandlerFunc(proposalH.Withdraw)))
 	mux.Handle("POST /api/dmms/proposals/{id}/accept", authMW(pmOnly(http.HandlerFunc(proposalH.Accept))))

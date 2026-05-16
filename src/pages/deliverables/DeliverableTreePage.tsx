@@ -174,6 +174,11 @@ function DeliverableNode({ deliverable: d, depth, projectId, onAddChild, onEdit,
             <span style={{ fontWeight: 500, color: 'var(--fg-0)', fontSize: 14 }}>{d.title}</span>
             <Badge color={deliverableStatusColor[d.status]}>{deliverableStatusLabel[d.status]}</Badge>
             {d.visibility === 'private' && <Badge color="gray">Private</Badge>}
+            {(d.proposal_count ?? 0) > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 700, background: 'var(--amber)', color: '#000', borderRadius: 99, padding: '1px 7px', lineHeight: 1.6 }}>
+                {d.proposal_count} proposal{d.proposal_count !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           <div className="meta" style={{ marginTop: 2, display: 'flex', gap: 16 }}>
             {/* <span>Max {formatCurrency(d.max_budget)}</span> */}

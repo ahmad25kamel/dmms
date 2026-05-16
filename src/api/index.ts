@@ -65,6 +65,7 @@ export const proposalsApi = {
   submit: (deliverableId: string, body: Partial<Proposal>) =>
     api.post<Proposal>(`/deliverables/${deliverableId}/proposals`, body),
   mine: () => api.get<Proposal[]>('/proposals/mine'),
+  allForPM: () => api.get<Proposal[]>('/proposals/all'),
   revise: (id: string, body: Partial<Proposal>) => api.patch<{ updated: boolean }>(`/proposals/${id}`, body),
   withdraw: (id: string) => api.post<{ withdrawn: boolean }>(`/proposals/${id}/withdraw`),
   accept: (id: string) => api.post<{ accepted: boolean }>(`/proposals/${id}/accept`),

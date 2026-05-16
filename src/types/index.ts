@@ -60,6 +60,7 @@ export interface Deliverable {
   updated_at: string;
   children?: Deliverable[];
   project_name?: string;
+  proposal_count?: number;
 }
 
 export interface Task {
@@ -109,6 +110,7 @@ export interface Proposal {
   status: ProposalStatus;
   created_at: string;
   contributor_name?: string;
+  deliverable_title?: string;
 }
 
 export type SubmissionStatus = 'pending' | 'approved' | 'revision_requested' | 'rejected';

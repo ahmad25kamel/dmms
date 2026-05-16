@@ -76,6 +76,7 @@ const navItems: NavItem[] = [
   { to: '/dashboard',  label: 'Dashboard',     icon: <Icon.Dashboard />,  roles: ['pm','contributor','admin'] },
   { to: '/projects',   label: 'Projects',      icon: <Icon.Projects />,   roles: ['pm','admin'] },
   { to: '/marketplace',label: 'Marketplace',   icon: <Icon.Store />,      roles: ['contributor','pm'] },
+  { to: '/proposals/all', label: 'All Proposals', icon: <Icon.Proposals />, roles: ['pm', 'admin'] },
   { to: '/proposals',  label: 'My Proposals',  icon: <Icon.Proposals />,  roles: ['contributor'] },
   { to: '/workspace',  label: 'My Work',       icon: <Icon.Work />,       roles: ['contributor'] },
   { to: '/kanban',     label: 'Kanban',        icon: <Icon.Kanban />,     roles: ['pm','contributor','admin'] },

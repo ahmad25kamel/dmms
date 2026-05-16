@@ -35,6 +35,19 @@ func (h *ProposalHandler) List(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusOK, proposals)
 }
 
+func (h *ProposalHandler) AllForPM(w http.ResponseWriter, r *http.Request) {
+	pmID := middleware.GetUserID(r)
+	proposals, err := h.proposals.ListByPM(pmID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to list proposals")
+		return
+	}
+	if proposals == nil {
+		proposals = []*models.Proposal{}
+	}
+	JSON(w, http.StatusOK, proposals)
+}
+
 func (h *ProposalHandler) Mine(w http.ResponseWriter, r *http.Request) {
 	contributorID := middleware.GetUserID(r)
 	proposals, err := h.proposals.ListByContributor(contributorID)

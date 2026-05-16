@@ -10,6 +10,7 @@ import { DeliverableTreePage } from './pages/deliverables/DeliverableTreePage';
 import { MarketplacePage } from './pages/marketplace/MarketplacePage';
 import { ProposalsPage } from './pages/proposals/ProposalsPage';
 import { ProposalReviewPage } from './pages/proposals/ProposalReviewPage';
+import { AllProposalsPage } from './pages/proposals/AllProposalsPage';
 import { WorkspaceListPage } from './pages/workspace/WorkspaceListPage';
 import { WorkspacePage } from './pages/workspace/WorkspacePage';
 import { ReviewCenterPage } from './pages/review/ReviewCenterPage';
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/marketplace" element={<MarketplacePage />} />
         <Route path="/proposals" element={<ProposalsPage />} />
         <Route path="/proposals/review/:deliverableId" element={<ProposalReviewPage />} />
+        <Route path="/proposals/all" element={<AllProposalsPage />} />
         <Route path="/workspace" element={<WorkspaceListPage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/review" element={<ReviewCenterPage />} />

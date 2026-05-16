@@ -71,6 +71,35 @@ func (r *ProposalRepo) UpdateBid(id string, bidAmount float64, message string, e
 	}).Error
 }
 
+type ProposalDeliverableCount struct {
+	DeliverableID string
+	Count         int
+}
+
+func (r *ProposalRepo) CountByProject(projectID string) ([]ProposalDeliverableCount, error) {
+	var results []ProposalDeliverableCount
+	err := r.db.Table("dmms_proposals p").
+		Select("p.deliverable_id, COUNT(*) as count").
+		Joins("JOIN dmms_deliverables d ON d.id = p.deliverable_id").
+		Where("d.project_id = ? AND d.deleted_at IS NULL", projectID).
+		Group("p.deliverable_id").
+		Scan(&results).Error
+	return results, err
+}
+
+func (r *ProposalRepo) ListByPM(pmID string) ([]*models.Proposal, error) {
+	var proposals []*models.Proposal
+	err := r.db.Table("dmms_proposals p").
+		Select("p.*, u.name as contributor_name, d.title as deliverable_title").
+		Joins("JOIN dmms_users u ON u.id = p.contributor_id").
+		Joins("JOIN dmms_deliverables d ON d.id = p.deliverable_id").
+		Joins("JOIN dmms_projects pr ON pr.id = d.project_id").
+		Where("pr.owner_id = ? AND d.deleted_at IS NULL AND pr.deleted_at IS NULL", pmID).
+		Order("p.created_at DESC").
+		Scan(&proposals).Error
+	return proposals, err
+}
+
 // RejectOthers rejects all pending proposals for a deliverable except the accepted one.
 func (r *ProposalRepo) RejectOthers(deliverableID, acceptedID string) error {
 	return r.db.Model(&models.Proposal{}).
