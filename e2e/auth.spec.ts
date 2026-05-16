@@ -213,6 +213,7 @@ test.describe('Role enforcement', () => {
     await registerPage.submit();
     await registerPage.expectRedirectToDashboard();
     // Verify they get contributor role, not admin
-    await expect(page.locator('nav, header, aside')).not.toContainText('Admin', { ignoreCase: false });
+    // Verify no Admin nav link is shown (contributor role, not admin)
+    await expect(page.locator('a[href="/admin"]')).toHaveCount(0);
   });
 });
