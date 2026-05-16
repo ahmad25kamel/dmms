@@ -5,7 +5,8 @@ export class KanbanPage {
 
   async goto() {
     await this.page.goto('/kanban');
-    await expect(this.page.locator('h1')).toContainText(/kanban/i);
+    // Wait for kanban columns to render (page rehydrates auth from sessionStorage async)
+    await expect(this.page.locator('text=Backlog').first()).toBeVisible({ timeout: 15000 });
   }
 
   async expectColumnsVisible() {
@@ -47,6 +48,13 @@ export class KanbanPage {
   }
 
   async filterByProject(projectName: string) {
+    // Wait for the next filtered request to complete
+    const responsePromise = this.page.waitForResponse(
+      res => res.url().includes('/kanban') && res.url().includes('project_id=') && res.request().method() === 'GET',
+      { timeout: 10000 }
+    ).catch(() => {});
     await this.page.locator('select').first().selectOption({ label: projectName });
+    await responsePromise;
+    await this.page.waitForTimeout(200);
   }
 }

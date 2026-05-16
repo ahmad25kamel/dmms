@@ -14,7 +14,7 @@ export const authApi = {
 };
 
 export const usersApi = {
-  list: () => api.get<User[]>('/users'),
+  list: (limit = 200, offset = 0) => api.get<{ items: User[]; total: number; limit: number; offset: number }>(`/users?limit=${limit}&offset=${offset}`),
 };
 
 // Projects

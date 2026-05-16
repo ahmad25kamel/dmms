@@ -55,16 +55,20 @@ test.describe('Kanban — PM View', () => {
     await expect(modal).toBeVisible();
 
     const taskTitle = `Task ${uniqueSuffix()}`;
-    await modal.locator('input').first().fill(taskTitle);
 
-    // Select deliverable
-    const deliverableSelect = modal.locator('select').first();
-    if (await deliverableSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await deliverableSelect.selectOption({ label: deliverable.title });
-    }
+    // Select project first, then deliverable becomes enabled
+    const projectSelect = modal.locator('select').first();
+    await projectSelect.selectOption({ label: project.name });
+    const deliverableSelect = modal.locator('select').nth(1);
+    await deliverableSelect.selectOption({ label: deliverable.title });
+
+    // Fill title (after selects to avoid focus issues)
+    await modal.locator('input').first().fill(taskTitle);
 
     await page.locator('button[type="submit"], button', { hasText: /create|save/i }).last().click();
 
+    // Filter by project to find the newly created task
+    await kanbanPage.filterByProject(project.name);
     await kanbanPage.expectTaskVisible(taskTitle);
   });
 
@@ -106,7 +110,7 @@ test.describe('Kanban — PM View', () => {
         deliverable_id: deliverable.id,
         project_id: project.id,
         title: `Click Test Task ${uniqueSuffix()}`,
-        status: 'backlog',
+        status: 'todo',
         is_required: true,
       }),
     });
@@ -119,9 +123,10 @@ test.describe('Kanban — PM View', () => {
 
     const kanbanPage = new KanbanPage(page);
     await kanbanPage.goto();
+    await kanbanPage.filterByProject(project.name);
 
     await kanbanPage.openTaskDetail(task.title);
-    await expect(page.locator('[class*="modal"], [role="dialog"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[class*="modal"], [role="dialog"]').first()).toBeVisible({ timeout: 5000 });
     await page.keyboard.press('Escape');
   });
 
@@ -136,7 +141,7 @@ test.describe('Kanban — PM View', () => {
         deliverable_id: deliverable.id,
         project_id: project.id,
         title: `Delete Test Task ${uniqueSuffix()}`,
-        status: 'backlog',
+        status: 'todo',
         is_required: true,
       }),
     });
@@ -148,16 +153,17 @@ test.describe('Kanban — PM View', () => {
 
     const kanbanPage = new KanbanPage(page);
     await kanbanPage.goto();
+    await kanbanPage.filterByProject(project.name);
 
     await kanbanPage.openTaskDetail(task.title);
 
     const modal = page.locator('[class*="modal"], [role="dialog"]').first();
     await expect(modal).toBeVisible();
 
-    page.once('dialog', d => d.accept());
+    // Delete button directly deletes without confirm dialog (no window.confirm)
     await modal.locator('button', { hasText: /delete/i }).click();
 
-    await expect(page.locator(`text=${task.title}`)).not.toBeVisible({ timeout: 8000 });
+    await expect(page.locator('li').filter({ hasText: task.title })).toHaveCount(0, { timeout: 8000 });
   });
 
   test('PM can add a comment to a task', async ({ page }) => {
@@ -171,7 +177,7 @@ test.describe('Kanban — PM View', () => {
         deliverable_id: deliverable.id,
         project_id: project.id,
         title: `Comment Task ${uniqueSuffix()}`,
-        status: 'backlog',
+        status: 'todo',
         is_required: true,
       }),
     });
@@ -183,6 +189,7 @@ test.describe('Kanban — PM View', () => {
 
     const kanbanPage = new KanbanPage(page);
     await kanbanPage.goto();
+    await kanbanPage.filterByProject(project.name);
 
     await kanbanPage.openTaskDetail(task.title);
 
@@ -310,7 +317,7 @@ test.describe('Kanban — File Upload', () => {
         deliverable_id: deliverable.id,
         project_id: project.id,
         title: `Upload Task ${uniqueSuffix()}`,
-        status: 'backlog',
+        status: 'todo',
         is_required: true,
       }),
     });
@@ -322,6 +329,7 @@ test.describe('Kanban — File Upload', () => {
 
     const kanbanPage = new KanbanPage(page);
     await kanbanPage.goto();
+    await kanbanPage.filterByProject(project.name);
     await kanbanPage.openTaskDetail(task.title);
 
     const modal = page.locator('[class*="modal"], [role="dialog"]').first();

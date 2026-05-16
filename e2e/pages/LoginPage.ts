@@ -25,6 +25,8 @@ export class LoginPage {
     await this.fillUsername(username);
     await this.fillPassword(password);
     await this.submit();
+    // Wait for navigation away from /login so callers can immediately use the app
+    await this.page.waitForURL(url => !url.pathname.endsWith('/login'), { timeout: 10000 });
   }
 
   async expectError(text: string) {

@@ -64,8 +64,8 @@ function PMKanban() {
   const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
-    projectsApi.list().then(res => setProjects(res.items));
-    usersApi.list().then(setUsers);
+    projectsApi.list(500).then(res => setProjects(res.items));
+    usersApi.list().then(res => setUsers(res.items));
   }, []);
 
   const loadMore = useCallback(async (status: KanbanStatus, offset: number) => {
@@ -197,8 +197,8 @@ function ContributorKanban() {
   const [resetKey] = useState(0);
 
   useEffect(() => {
-    projectsApi.list().then(res => setProjects(res.items));
-    usersApi.list().then(setUsers);
+    projectsApi.list(500).then(res => setProjects(res.items));
+    usersApi.list().then(res => setUsers(res.items));
   }, []);
 
   const loadMore = useCallback(async (status: KanbanStatus, offset: number) => {
@@ -754,7 +754,7 @@ function TaskDetailModal({ task, users, onClose, onUpdated, onDeleted }: {
             {/* Actions */}
             <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 12 }}>
               <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit Task</Button>
-              {user?.role === 'pm' || user?.role === 'admin' && (
+              {(user?.role === 'pm' || user?.role === 'admin') && (
                 <Button size="sm" variant="danger" onClick={() => { kanbanApi.delete(t.id); onDeleted(t.id); }}>Delete</Button>
               )}
             </div>
