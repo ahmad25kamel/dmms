@@ -94,7 +94,7 @@ func (r *ProposalRepo) ListByPM(pmID string) ([]*models.Proposal, error) {
 		Joins("JOIN dmms_users u ON u.id = p.contributor_id").
 		Joins("JOIN dmms_deliverables d ON d.id = p.deliverable_id").
 		Joins("JOIN dmms_projects pr ON pr.id = d.project_id").
-		Where("pr.owner_id = ? AND d.deleted_at IS NULL AND pr.deleted_at IS NULL", pmID).
+		Where("pr.pm_id = ? AND d.deleted_at IS NULL AND pr.deleted_at IS NULL", pmID).
 		Order("p.created_at DESC").
 		Scan(&proposals).Error
 	return proposals, err

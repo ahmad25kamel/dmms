@@ -151,6 +151,11 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail }: {
             <span style={{ fontWeight: 600, fontSize: 14 }}>{d.title}</span>
             <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 12 }}>{formatCurrency(d.max_budget)}</span>
             {d.due_date && <span className="meta">Due {formatDate(d.due_date)}</span>}
+            {(d.proposal_count ?? 0) > 0 && (
+              <span style={{ fontSize: 11, background: 'var(--accent)', color: '#fff', borderRadius: 99, padding: '1px 7px', fontWeight: 600 }}>
+                {d.proposal_count} bid{d.proposal_count !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           {d.brief && depth === 0 && (
             <p className="body-sm" style={{ marginTop: 2, color: 'var(--fg-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
