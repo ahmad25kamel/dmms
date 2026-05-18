@@ -52,16 +52,21 @@ func (r *DeliverableRepo) ListByOwner(ownerID string) ([]*models.Deliverable, er
 
 func (r *DeliverableRepo) ListOpenBids(visibility models.Visibility) ([]*models.Deliverable, error) {
 	var out []*models.Deliverable
-	query := r.db.Model(&models.Deliverable{}).
-		Select("dmms_deliverables.*, Project.name as project_name, (SELECT COUNT(*) FROM dmms_proposals WHERE deliverable_id = dmms_deliverables.id) as proposal_count").
-		InnerJoins("Project").
-		Where("dmms_deliverables.status = ?", "open_for_bids")
 
+	sql := `SELECT d.*, pr.name as project_name,
+		(SELECT COUNT(*) FROM dmms_proposals p WHERE p.deliverable_id = d.id) as proposal_count
+		FROM dmms_deliverables d
+		INNER JOIN dmms_projects pr ON pr.id = d.project_id AND pr.deleted_at IS NULL
+		WHERE d.status = 'open_for_bids' AND d.deleted_at IS NULL`
+
+	args := []interface{}{}
 	if visibility == models.VisibilityPublic {
-		query = query.Where("dmms_deliverables.visibility = ?", "public")
+		sql += " AND d.visibility = ?"
+		args = append(args, "public")
 	}
+	sql += " ORDER BY d.due_date"
 
-	if err := query.Order("dmms_deliverables.due_date").Scan(&out).Error; err != nil {
+	if err := r.db.Raw(sql, args...).Scan(&out).Error; err != nil {
 		return nil, err
 	}
 	return out, nil
