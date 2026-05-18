@@ -24,10 +24,11 @@ type KanbanHandler struct {
 	kanban        *repository.KanbanRepo
 	users         *repository.UserRepo
 	notifications *repository.NotificationRepo
+	deliverables  *repository.DeliverableRepo
 }
 
-func NewKanbanHandler(tasks *repository.TaskRepo, kanban *repository.KanbanRepo, users *repository.UserRepo, notifications *repository.NotificationRepo) *KanbanHandler {
-	return &KanbanHandler{tasks: tasks, kanban: kanban, users: users, notifications: notifications}
+func NewKanbanHandler(tasks *repository.TaskRepo, kanban *repository.KanbanRepo, users *repository.UserRepo, notifications *repository.NotificationRepo, deliverables *repository.DeliverableRepo) *KanbanHandler {
+	return &KanbanHandler{tasks: tasks, kanban: kanban, users: users, notifications: notifications, deliverables: deliverables}
 }
 
 type taskListResponse struct {
@@ -35,33 +36,25 @@ type taskListResponse struct {
 	Total int64          `json:"total"`
 }
 
-// GET /kanban?project_id=&limit=&offset=&status=
+// GET /kanban?project_id=&deliverable_id=&assigned_to=&status=&hide_archived=true&limit=&offset=
 func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
-	projectID := r.URL.Query().Get("project_id")
-	status := r.URL.Query().Get("status")
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-
-	var tasks []*models.Task
-	var total int64
-	var err error
-
-	if projectID != "" {
-		tasks, err = h.tasks.ListByProject(projectID, limit, offset, status)
-		if err == nil {
-			total, _ = h.tasks.CountByProject(projectID, status)
-		}
-	} else {
-		tasks, err = h.tasks.ListAll(limit, offset, status)
-		if err == nil {
-			total, _ = h.tasks.CountAll(status)
-		}
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	f := repository.TaskFilter{
+		ProjectID:     q.Get("project_id"),
+		DeliverableID: q.Get("deliverable_id"),
+		AssignedTo:    q.Get("assigned_to"),
+		Status:        q.Get("status"),
+		HideArchived:  q.Get("hide_archived") == "true",
 	}
 
+	tasks, err := h.tasks.ListFiltered(f, limit, offset)
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to list tasks")
 		return
 	}
+	total, _ := h.tasks.CountFiltered(f)
 	if tasks == nil {
 		tasks = []*models.Task{}
 	}
@@ -72,11 +65,17 @@ func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
 // GET /kanban/mine (contributor view — all tasks for their deliverables)
 func (h *KanbanHandler) Mine(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
-	status := r.URL.Query().Get("status")
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	f := repository.TaskFilter{
+		ProjectID:     q.Get("project_id"),
+		DeliverableID: q.Get("deliverable_id"),
+		Status:        q.Get("status"),
+		HideArchived:  q.Get("hide_archived") == "true",
+	}
 
-	tasks, err := h.tasks.ListForContributor(userID, limit, offset, status)
+	tasks, err := h.tasks.ListForContributorFiltered(userID, f, limit, offset)
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to list tasks")
 		return
@@ -85,7 +84,7 @@ func (h *KanbanHandler) Mine(w http.ResponseWriter, r *http.Request) {
 		tasks = []*models.Task{}
 	}
 	h.populateMembers(tasks)
-	total, _ := h.tasks.CountForContributor(userID, status)
+	total, _ := h.tasks.CountForContributorFiltered(userID, f)
 	JSON(w, http.StatusOK, taskListResponse{Items: tasks, Total: total})
 }
 
@@ -126,6 +125,29 @@ func (h *KanbanHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusBadRequest, "title, deliverable_id, and project_id are required")
 		return
 	}
+
+	// Contributors can only create tasks on deliverables they own that are active
+	if middleware.GetRole(r) == models.RoleContributor {
+		d, err := h.deliverables.FindByID(body.DeliverableID)
+		if err != nil || d == nil {
+			Err(w, http.StatusNotFound, "deliverable not found")
+			return
+		}
+		if d.OwnerID == nil || *d.OwnerID != userID {
+			Err(w, http.StatusForbidden, "you are not assigned to this deliverable")
+			return
+		}
+		allowed := map[models.DeliverableStatus]bool{
+			models.DelivAssigned:           true,
+			models.DelivInProgress:         true,
+			models.DelivRevisionRequested:  true,
+		}
+		if !allowed[d.Status] {
+			Err(w, http.StatusForbidden, "deliverable must be assigned or in progress to add tasks")
+			return
+		}
+	}
+
 	status := models.KanbanBacklog
 	if body.Status != "" {
 		status = body.Status
@@ -262,6 +284,22 @@ func (h *KanbanHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	JSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+// POST /kanban/:id/archive — toggle archive state
+func (h *KanbanHandler) Archive(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	task, err := h.tasks.Get(id)
+	if err != nil {
+		Err(w, http.StatusNotFound, "task not found")
+		return
+	}
+	newArchived := !task.Archived
+	if err := h.tasks.SetArchived(id, newArchived); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to archive task")
+		return
+	}
+	JSON(w, http.StatusOK, map[string]bool{"archived": newArchived})
 }
 
 // GET /kanban/:id/comments

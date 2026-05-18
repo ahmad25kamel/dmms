@@ -72,49 +72,97 @@ func (r *TaskRepo) ListByDeliverable(deliverableID string) ([]*models.Task, erro
 	return out, err
 }
 
+// TaskFilter holds optional filter params for task list/count queries.
+type TaskFilter struct {
+	ProjectID     string
+	DeliverableID string
+	AssignedTo    string
+	Status        string
+	HideArchived  bool
+}
+
+
 func (r *TaskRepo) CountByProject(projectID, status string) (int64, error) {
-	var n int64
-	q := r.db.Model(&models.Task{}).InnerJoins("Project").InnerJoins("Deliverable").Where("dmms_tasks.project_id = ?", projectID)
-	if status != "" {
-		q = q.Where("dmms_tasks.status = ?", status)
-	}
-	return n, q.Count(&n).Error
+	return r.CountFiltered(TaskFilter{ProjectID: projectID, Status: status})
 }
 
 func (r *TaskRepo) CountAll(status string) (int64, error) {
+	return r.CountFiltered(TaskFilter{Status: status})
+}
+
+func (r *TaskRepo) CountFiltered(f TaskFilter) (int64, error) {
 	var n int64
 	q := r.db.Model(&models.Task{}).InnerJoins("Project").InnerJoins("Deliverable")
-	if status != "" {
-		q = q.Where("dmms_tasks.status = ?", status)
+	if f.ProjectID != "" {
+		q = q.Where("dmms_tasks.project_id = ?", f.ProjectID)
+	}
+	if f.DeliverableID != "" {
+		q = q.Where("dmms_tasks.deliverable_id = ?", f.DeliverableID)
+	}
+	if f.AssignedTo != "" {
+		q = q.Where("dmms_tasks.assigned_to = ?", f.AssignedTo)
+	}
+	if f.Status != "" {
+		q = q.Where("dmms_tasks.status = ?", f.Status)
+	}
+	if f.HideArchived {
+		q = q.Where("dmms_tasks.archived = false")
 	}
 	return n, q.Count(&n).Error
 }
 
 func (r *TaskRepo) CountForContributor(userID, status string) (int64, error) {
+	return r.CountForContributorFiltered(userID, TaskFilter{Status: status})
+}
+
+func (r *TaskRepo) CountForContributorFiltered(userID string, f TaskFilter) (int64, error) {
 	var n int64
 	q := r.db.Model(&models.Task{}).InnerJoins("Project").InnerJoins("Deliverable").
 		Where(`(dmms_tasks.assigned_to = ?
 			OR EXISTS (SELECT 1 FROM dmms_task_members tm WHERE tm.task_id = dmms_tasks.id AND tm.user_id = ?)
 			OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id = dmms_tasks.deliverable_id AND dd.owner_id = ? AND dd.deleted_at IS NULL))`,
 			userID, userID, userID)
-	if status != "" {
-		q = q.Where("dmms_tasks.status = ?", status)
+	if f.ProjectID != "" {
+		q = q.Where("dmms_tasks.project_id = ?", f.ProjectID)
+	}
+	if f.DeliverableID != "" {
+		q = q.Where("dmms_tasks.deliverable_id = ?", f.DeliverableID)
+	}
+	if f.Status != "" {
+		q = q.Where("dmms_tasks.status = ?", f.Status)
+	}
+	if f.HideArchived {
+		q = q.Where("dmms_tasks.archived = false")
 	}
 	return n, q.Count(&n).Error
 }
 
 func (r *TaskRepo) ListByProject(projectID string, limit, offset int, status string) ([]*models.Task, error) {
+	return r.ListFiltered(TaskFilter{ProjectID: projectID, Status: status}, limit, offset)
+}
+
+func (r *TaskRepo) ListFiltered(f TaskFilter, limit, offset int) ([]*models.Task, error) {
 	var out []*models.Task
 	q := r.db.Model(&models.Task{}).
 		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
 		InnerJoins("Project").
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
-		Joins("Creator").
-		Where("dmms_tasks.project_id = ?", projectID)
-	
-	if status != "" {
-		q = q.Where("dmms_tasks.status = ?", status)
+		Joins("Creator")
+	if f.ProjectID != "" {
+		q = q.Where("dmms_tasks.project_id = ?", f.ProjectID)
+	}
+	if f.DeliverableID != "" {
+		q = q.Where("dmms_tasks.deliverable_id = ?", f.DeliverableID)
+	}
+	if f.AssignedTo != "" {
+		q = q.Where("dmms_tasks.assigned_to = ?", f.AssignedTo)
+	}
+	if f.Status != "" {
+		q = q.Where("dmms_tasks.status = ?", f.Status)
+	}
+	if f.HideArchived {
+		q = q.Where("dmms_tasks.archived = false")
 	}
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -124,25 +172,14 @@ func (r *TaskRepo) ListByProject(projectID string, limit, offset int, status str
 }
 
 func (r *TaskRepo) ListAll(limit, offset int, status string) ([]*models.Task, error) {
-	var out []*models.Task
-	q := r.db.Model(&models.Task{}).
-		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
-		InnerJoins("Project").
-		InnerJoins("Deliverable").
-		Joins("AssignedUser").
-		Joins("Creator")
-		
-	if status != "" {
-		q = q.Where("dmms_tasks.status = ?", status)
-	}
-	if limit > 0 {
-		q = q.Limit(limit).Offset(offset)
-	}
-	err := q.Order("CASE WHEN COALESCE(dmms_tasks.due_date, Deliverable.due_date) IS NULL THEN 1 ELSE 0 END, COALESCE(dmms_tasks.due_date, Deliverable.due_date) ASC, dmms_tasks.position").Scan(&out).Error
-	return out, err
+	return r.ListFiltered(TaskFilter{Status: status}, limit, offset)
 }
 
 func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status string) ([]*models.Task, error) {
+	return r.ListForContributorFiltered(userID, TaskFilter{Status: status}, limit, offset)
+}
+
+func (r *TaskRepo) ListForContributorFiltered(userID string, f TaskFilter, limit, offset int) ([]*models.Task, error) {
 	var out []*models.Task
 	q := r.db.Model(&models.Task{}).
 		Select("dmms_tasks.*, Project.name as project_name, Deliverable.title as deliverable_title, Deliverable.due_date as deliverable_due_date, AssignedUser.name as assigned_to_name, Creator.name as created_by_name, (SELECT COUNT(*) FROM dmms_task_comments c WHERE c.task_id=dmms_tasks.id) as comment_count").
@@ -154,9 +191,17 @@ func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status s
 			OR EXISTS (SELECT 1 FROM dmms_task_members tm WHERE tm.task_id = dmms_tasks.id AND tm.user_id = ?)
 			OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id = dmms_tasks.deliverable_id AND dd.owner_id = ? AND dd.deleted_at IS NULL))`,
 			userID, userID, userID)
-
-	if status != "" {
-		q = q.Where("dmms_tasks.status = ?", status)
+	if f.ProjectID != "" {
+		q = q.Where("dmms_tasks.project_id = ?", f.ProjectID)
+	}
+	if f.DeliverableID != "" {
+		q = q.Where("dmms_tasks.deliverable_id = ?", f.DeliverableID)
+	}
+	if f.Status != "" {
+		q = q.Where("dmms_tasks.status = ?", f.Status)
+	}
+	if f.HideArchived {
+		q = q.Where("dmms_tasks.archived = false")
 	}
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -165,10 +210,14 @@ func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status s
 	return out, err
 }
 
+func (r *TaskRepo) SetArchived(id string, archived bool) error {
+	return r.db.Model(&models.Task{}).Where("id = ?", id).Update("archived", archived).Error
+}
+
 func (r *TaskRepo) CountRequiredPending(deliverableID string) (int64, error) {
 	var n int64
 	err := r.db.Model(&models.Task{}).
-		Where("deliverable_id = ? AND is_required = true AND status != ?", deliverableID, models.KanbanDone).
+		Where("deliverable_id = ? AND is_required = true AND archived = false AND status != ?", deliverableID, models.KanbanDone).
 		Count(&n).Error
 	return n, err
 }

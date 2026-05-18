@@ -73,6 +73,7 @@ export interface Task {
   description: string;
   status: KanbanStatus;
   is_required: boolean;
+  archived: boolean;
   due_date: string | null;
   position: number;
   created_at: string;

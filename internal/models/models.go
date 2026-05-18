@@ -120,6 +120,7 @@ type Task struct {
 	Description    string       `json:"description" gorm:"type:text"`
 	Status         KanbanStatus `json:"status" gorm:"not null;default:'backlog'"`
 	IsRequired     bool         `json:"is_required" gorm:"column:is_required;not null;default:0"`
+	Archived       bool         `json:"archived" gorm:"column:archived;not null;default:0"`
 	DueDate        *time.Time   `json:"due_date" gorm:"column:due_date"`
 	Position       int          `json:"position" gorm:"not null;default:0"`
 	CreatedAt      time.Time    `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`

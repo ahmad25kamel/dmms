@@ -93,20 +93,24 @@ export const rewardsApi = {
 
 // Kanban
 export const kanbanApi = {
-  list: (params?: { project_id?: string; deliverable_id?: string; assigned_to?: string; status?: string; limit?: number; offset?: number }) => {
+  list: (params?: { project_id?: string; deliverable_id?: string; assigned_to?: string; status?: string; hide_archived?: boolean; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
     if (params?.project_id) q.set('project_id', params.project_id);
     if (params?.deliverable_id) q.set('deliverable_id', params.deliverable_id);
     if (params?.assigned_to) q.set('assigned_to', params.assigned_to);
     if (params?.status) q.set('status', params.status);
+    if (params?.hide_archived) q.set('hide_archived', 'true');
     if (params?.limit) q.set('limit', params.limit.toString());
     if (params?.offset) q.set('offset', params.offset.toString());
     const qs = q.toString();
     return api.get<{ items: KanbanTask[]; total: number }>(`/kanban${qs ? '?' + qs : ''}`);
   },
-  mine: (params?: { status?: string; limit?: number; offset?: number }) => {
+  mine: (params?: { project_id?: string; deliverable_id?: string; status?: string; hide_archived?: boolean; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
+    if (params?.project_id) q.set('project_id', params.project_id);
+    if (params?.deliverable_id) q.set('deliverable_id', params.deliverable_id);
     if (params?.status) q.set('status', params.status);
+    if (params?.hide_archived) q.set('hide_archived', 'true');
     if (params?.limit) q.set('limit', params.limit.toString());
     if (params?.offset) q.set('offset', params.offset.toString());
     const qs = q.toString();
@@ -116,6 +120,7 @@ export const kanbanApi = {
   update: (id: string, body: Partial<KanbanTask> & { due_date?: string }) => api.patch<KanbanTask>(`/kanban/${id}`, body),
   reorder: (body: { id: string; status: string; position: number }[]) => api.put<{ success: boolean }>('/kanban/reorder', body),
   delete: (id: string) => api.delete<{ deleted: boolean }>(`/kanban/${id}`),
+  archive: (id: string) => api.post<{ archived: boolean }>(`/kanban/${id}/archive`),
   listComments: (id: string) => api.get<KanbanComment[]>(`/kanban/${id}/comments`),
   addComment: (id: string, body: string, file_uploads?: string[]) => api.post<KanbanComment>(`/kanban/${id}/comments`, { body, file_uploads }),
   uploadGeneric: (file: File) => api.upload<{ path: string }>('/files', file),

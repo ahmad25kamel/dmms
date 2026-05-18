@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { kanbanApi, projectsApi, usersApi } from '../../api';
-import type { KanbanTask, KanbanComment, Project, User } from '../../types';
+import { kanbanApi, projectsApi, usersApi, deliverablesApi } from '../../api';
+import type { KanbanTask, KanbanComment, Project, User, Deliverable } from '../../types';
 import { Button, Modal, FormField, Input, Select, Spinner, Alert, MentionsTextarea } from '../../components/ui';
 import { formatDate } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
@@ -32,6 +32,238 @@ function daysUntil(dateStr: string): { label: string; urgent: boolean } {
   return { label: `-${diff}d`, urgent: false };
 }
 
+// ── Filter panel ─────────────────────────────────────────────────────────────
+
+interface FilterState {
+  project: string;
+  deliverable: string;
+  contributor: string;
+  hideArchived: boolean;
+}
+
+interface DeliverableNode {
+  id: string;
+  title: string;
+  depth: number;
+  selectable?: boolean; // false = ancestor header, not a filter target
+}
+
+function DeliverableTreePicker({
+  value, onChange, nodes, disabled,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  nodes: DeliverableNode[];
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = nodes.find(n => n.id === value);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen(o => !o)}
+        style={{
+          width: '100%', height: 30, padding: '0 10px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'var(--bg-1)', border: '1px solid var(--border-1)',
+          borderRadius: 'var(--radius-sm)', cursor: disabled ? 'not-allowed' : 'pointer',
+          fontSize: 12, color: selected ? 'var(--fg-0)' : 'var(--fg-3)',
+          opacity: disabled ? 0.5 : 1, textAlign: 'left',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+          {selected ? selected.title : disabled ? 'Select a project first' : 'All deliverables'}
+        </span>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, marginLeft: 4 }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99,
+            marginTop: 4,
+            background: 'var(--bg-1)', border: '1px solid var(--border-1)',
+            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-2)',
+            maxHeight: 220, overflowY: 'auto',
+          }}>
+            {/* All option */}
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false); }}
+              style={{
+                width: '100%', padding: '7px 12px', border: 'none',
+                background: value === '' ? 'var(--kamel-blue-soft)' : 'transparent',
+                color: value === '' ? 'var(--kamel-blue)' : 'var(--fg-2)',
+                fontSize: 12, fontWeight: value === '' ? 600 : 400,
+                cursor: 'pointer', textAlign: 'left',
+                borderBottom: '1px solid var(--border-1)',
+              }}
+            >
+              All deliverables
+            </button>
+
+            {nodes.map(n => {
+              const isSelectable = n.selectable !== false;
+              const isSelected = isSelectable && n.id === value;
+              const indent = n.depth * 16;
+
+              // Non-selectable ancestors: show as a dim section header
+              if (!isSelectable) {
+                return (
+                  <div
+                    key={n.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: `5px 12px 5px ${12 + indent}px`,
+                      fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+                      color: 'var(--fg-3)', textTransform: 'uppercase',
+                      borderTop: n.depth === 0 ? '1px solid var(--border-1)' : 'none',
+                      marginTop: n.depth === 0 ? 2 : 0,
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ flexShrink: 0, opacity: 0.5 }}>
+                      <rect x="1" y="3" width="14" height="11" rx="2"/><path d="M5 3V1.5M11 3V1.5M1 7h14"/>
+                    </svg>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</span>
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => { onChange(n.id); setOpen(false); }}
+                  style={{
+                    width: '100%', border: 'none',
+                    background: isSelected ? 'var(--kamel-blue-soft)' : 'transparent',
+                    color: isSelected ? 'var(--kamel-blue)' : 'var(--fg-1)',
+                    cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', alignItems: 'center',
+                    padding: `6px 12px 6px ${12 + indent}px`,
+                    fontWeight: isSelected ? 600 : n.depth === 0 ? 500 : 400,
+                    fontSize: 12,
+                    gap: 6,
+                  }}
+                >
+                  {n.depth > 0 && (
+                    <span style={{ color: 'var(--border-2)', fontSize: 10, flexShrink: 0 }}>└</span>
+                  )}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FilterBar({
+  filters, onChange, projects, deliverableNodes, contributors, showContributor = false,
+}: {
+  filters: FilterState;
+  onChange: (f: FilterState) => void;
+  projects: { id: string; name: string }[];
+  deliverableNodes: DeliverableNode[];
+  contributors?: { id: string; name: string }[];
+  showContributor?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const hasActive = filters.project || filters.deliverable || filters.contributor || !filters.hideArchived;
+  const activeCount = [filters.project, filters.deliverable, filters.contributor].filter(Boolean).length + (!filters.hideArchived ? 1 : 0);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          height: 30, padding: '0 12px',
+          background: open || hasActive ? 'var(--kamel-blue-soft)' : 'var(--bg-1)',
+          border: `1px solid ${open || hasActive ? 'var(--kamel-blue)' : 'var(--border-1)'}`,
+          borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+          fontSize: 12, fontWeight: 500,
+          color: open || hasActive ? 'var(--kamel-blue)' : 'var(--fg-2)',
+          transition: 'all 0.15s',
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+        </svg>
+        Filters
+        {activeCount > 0 && (
+          <span style={{ background: 'var(--kamel-blue)', color: '#fff', borderRadius: 99, fontSize: 10, fontWeight: 700, padding: '0 5px', lineHeight: '16px' }}>
+            {activeCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />
+          <div style={{
+            position: 'absolute', top: '100%', right: 0, zIndex: 50,
+            marginTop: 6, width: 300,
+            background: 'var(--bg-1)', border: '1px solid var(--border-1)',
+            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-2)',
+            padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Filters</span>
+              {hasActive && (
+                <button onClick={() => onChange({ project: '', deliverable: '', contributor: '', hideArchived: true })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--rose)', padding: 0, fontWeight: 600 }}>
+                  Reset all
+                </button>
+              )}
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</label>
+              <Select value={filters.project} onChange={e => onChange({ ...filters, project: e.target.value, deliverable: '' })} style={{ width: '100%', height: 30, fontSize: 12 }}>
+                <option value="">All projects</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </Select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Deliverable</label>
+              <DeliverableTreePicker
+                value={filters.deliverable}
+                onChange={id => onChange({ ...filters, deliverable: id })}
+                nodes={deliverableNodes}
+                disabled={deliverableNodes.length === 0}
+              />
+            </div>
+
+            {showContributor && contributors && (
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contributor</label>
+                <Select value={filters.contributor} onChange={e => onChange({ ...filters, contributor: e.target.value })} style={{ width: '100%', height: 30, fontSize: 12 }}>
+                  <option value="">All contributors</option>
+                  {contributors.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </Select>
+              </div>
+            )}
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--fg-2)', cursor: 'pointer', paddingTop: 4, borderTop: '1px solid var(--border-1)' }}>
+              <input type="checkbox" checked={filters.hideArchived} onChange={e => onChange({ ...filters, hideArchived: e.target.checked })} />
+              Hide archived tasks
+            </label>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const COLUMNS: { key: KanbanStatus; label: string; color: string }[] = [
   { key: 'backlog',     label: 'Backlog',      color: 'var(--fg-4)' },
   { key: 'todo',        label: 'To Do',         color: 'var(--kamel-blue)' },
@@ -56,11 +288,13 @@ function PMKanban() {
   });
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [deliverableNodes, setDeliverableNodes] = useState<DeliverableNode[]>([]);
   const [filterProject, setFilterProject] = useState('');
+  const [filterDeliverable, setFilterDeliverable] = useState('');
   const [filterContributor, setFilterContributor] = useState('');
+  const [hideArchived, setHideArchived] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<KanbanTask | null>(null);
-  // resetKey increments on filter change, passed to columns so they reset their hasMore state
   const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
@@ -68,19 +302,39 @@ function PMKanban() {
     usersApi.list().then(res => setUsers(res.items));
   }, []);
 
-  const loadMore = useCallback(async (status: KanbanStatus, offset: number) => {
-    const params: Record<string, string | number> = { status, limit: 20, offset };
-    if (filterProject) params.project_id = filterProject;
-    if (filterContributor) params.assigned_to = filterContributor;
+  // Fetch deliverables when project changes — flatten tree preserving depth
+  useEffect(() => {
+    setFilterDeliverable('');
+    if (filterProject) {
+      deliverablesApi.tree(filterProject).then(tree => {
+        const nodes: DeliverableNode[] = [];
+        const walk = (items: Deliverable[], depth: number) => items.forEach(n => {
+          nodes.push({ id: n.id, title: n.title, depth });
+          if (n.children?.length) walk(n.children, depth + 1);
+        });
+        walk(tree, 0);
+        setDeliverableNodes(nodes);
+      });
+    } else {
+      setDeliverableNodes([]);
+    }
+  }, [filterProject]);
 
-    const { items: newTasks, total } = await kanbanApi.list(params);
+  const loadMore = useCallback(async (status: KanbanStatus, offset: number) => {
+    const { items: newTasks, total } = await kanbanApi.list({
+      status, limit: 20, offset,
+      project_id: filterProject || undefined,
+      deliverable_id: filterDeliverable || undefined,
+      assigned_to: filterContributor || undefined,
+      hide_archived: hideArchived,
+    });
     setTasksMap(prev => ({
       ...prev,
       [status]: offset === 0 ? newTasks : [...prev[status], ...newTasks]
     }));
     setTotalCounts(prev => ({ ...prev, [status]: total }));
     return newTasks.length;
-  }, [filterProject, filterContributor]);
+  }, [filterProject, filterDeliverable, filterContributor, hideArchived]);
 
   useEffect(() => {
     setResetKey(k => k + 1);
@@ -112,17 +366,14 @@ function PMKanban() {
           <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>Monitor all task progress across projects</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ width: 160, height: 28, fontSize: 12 }}>
-            <option value="">All Projects</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </Select>
-          <Select value={filterContributor} onChange={e => setFilterContributor(e.target.value)} style={{ width: 160, height: 28, fontSize: 12 }}>
-            <option value="">All Contributors</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </Select>
-          {(filterProject || filterContributor) && (
-            <Button variant="ghost" size="sm" onClick={() => { setFilterProject(''); setFilterContributor(''); }}>Clear</Button>
-          )}
+          <FilterBar
+            filters={{ project: filterProject, deliverable: filterDeliverable, contributor: filterContributor, hideArchived }}
+            onChange={f => { setFilterProject(f.project); setFilterDeliverable(f.deliverable); setFilterContributor(f.contributor); setHideArchived(f.hideArchived); }}
+            projects={projects}
+            deliverableNodes={deliverableNodes}
+            contributors={users.filter(u => u.role === 'contributor')}
+            showContributor
+          />
           <Button onClick={() => setShowCreate(true)} size="sm">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Task
@@ -191,27 +442,71 @@ function ContributorKanban() {
     backlog: 0, todo: 0, in_progress: 0, done: 0
   });
   const [users, setUsers] = useState<User[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [assignedDeliverables, setAssignedDeliverables] = useState<Deliverable[]>([]);
+  const [deliverableNodes, setDeliverableNodes] = useState<DeliverableNode[]>([]);
+  const [filterProject, setFilterProject] = useState('');
+  const [filterDeliverable, setFilterDeliverable] = useState('');
+  const [hideArchived, setHideArchived] = useState(true);
   const [selected, setSelected] = useState<KanbanTask | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [resetKey] = useState(0);
+  const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
-    projectsApi.list(500).then(res => setProjects(res.items));
     usersApi.list().then(res => setUsers(res.items));
+    deliverablesApi.myAssigned().then(ds => setAssignedDeliverables(ds));
   }, []);
 
+  // Derive unique projects from assigned deliverables
+  const myProjects = [...new Map(
+    assignedDeliverables.filter(d => d.project_name).map(d => [d.project_id, { id: d.project_id, name: d.project_name! }])
+  ).values()];
+
+  // Build filtered tree nodes: show only assigned deliverables with ancestors as non-selectable headers
+  useEffect(() => {
+    if (assignedDeliverables.length === 0) { setDeliverableNodes([]); return; }
+    const assignedIds = new Set(assignedDeliverables.map(d => d.id));
+    const targetProjects = filterProject
+      ? myProjects.filter(p => p.id === filterProject)
+      : myProjects;
+    if (targetProjects.length === 0) { setDeliverableNodes([]); return; }
+
+    Promise.all(targetProjects.map(p => deliverablesApi.tree(p.id))).then(trees => {
+      function buildNodes(items: Deliverable[], depth: number): DeliverableNode[] {
+        const result: DeliverableNode[] = [];
+        for (const n of items) {
+          const isAssigned = assignedIds.has(n.id);
+          const childNodes = n.children?.length ? buildNodes(n.children, depth + 1) : [];
+          if (isAssigned || childNodes.length > 0) {
+            result.push({ id: n.id, title: n.title, depth, selectable: isAssigned });
+            result.push(...childNodes);
+          }
+        }
+        return result;
+      }
+      const nodes: DeliverableNode[] = [];
+      for (const tree of trees) nodes.push(...buildNodes(tree, 0));
+      setDeliverableNodes(nodes);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedDeliverables, filterProject]);
+
   const loadMore = useCallback(async (status: KanbanStatus, offset: number) => {
-    const { items: newTasks, total } = await kanbanApi.mine({ status, limit: 20, offset });
+    const { items: newTasks, total } = await kanbanApi.mine({
+      status, limit: 20, offset,
+      project_id: filterProject || undefined,
+      deliverable_id: filterDeliverable || undefined,
+      hide_archived: hideArchived,
+    });
     setTasksMap(prev => ({
       ...prev,
       [status]: offset === 0 ? newTasks : [...prev[status], ...newTasks]
     }));
     setTotalCounts(prev => ({ ...prev, [status]: total }));
     return newTasks.length;
-  }, []);
+  }, [filterProject, filterDeliverable, hideArchived]);
 
   useEffect(() => {
+    setResetKey(k => k + 1);
     COLUMNS.forEach(col => loadMore(col.key, 0));
   }, [loadMore]);
 
@@ -241,10 +536,18 @@ function ContributorKanban() {
           <h1 style={{ margin: 0, font: '600 17px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>My Task Board</h1>
           <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>Your personal kanban — tasks across all assigned deliverables</span>
         </div>
-        <Button onClick={() => setShowCreate(true)} size="sm">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Task
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FilterBar
+            filters={{ project: filterProject, deliverable: filterDeliverable, contributor: '', hideArchived }}
+            onChange={f => { setFilterProject(f.project); setFilterDeliverable(f.deliverable); setHideArchived(f.hideArchived); }}
+            projects={myProjects}
+            deliverableNodes={deliverableNodes}
+          />
+          <Button onClick={() => setShowCreate(true)} size="sm">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Task
+          </Button>
+        </div>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
@@ -253,7 +556,7 @@ function ContributorKanban() {
 
       {showCreate && (
         <CreateTaskModal
-          projects={projects}
+          projects={myProjects.map(p => ({ id: p.id, name: p.name } as unknown as Project))}
           assignedTo={user.id}
           users={users}
           onClose={() => setShowCreate(false)}
@@ -467,12 +770,13 @@ function KanbanCard({ task: t, onSelect }: {
       onClick={() => onSelect(t)}
       style={{
         background: 'var(--bg-1)',
-        border: `1px solid ${taskOverdue ? 'var(--rose)' : 'var(--border-1)'}`,
+        border: `1px solid ${taskOverdue && !t.archived ? 'var(--rose)' : 'var(--border-1)'}`,
         borderRadius: 'var(--radius-md)',
         padding: '12px 14px',
         cursor: 'grab',
         boxShadow: 'var(--shadow-1)',
         transition: 'all var(--dur-base) var(--ease-out)',
+        opacity: t.archived ? 0.5 : 1,
       }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = 'var(--shadow-2)')}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'var(--shadow-1)')}
@@ -486,7 +790,12 @@ function KanbanCard({ task: t, onSelect }: {
         <p className="meta" style={{ marginBottom: 4, fontSize: 11 }}>{t.deliverable_title}</p>
       )}
 
-      <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg-0)', marginBottom: t.description ? 6 : 8, lineHeight: 1.4 }}>{t.title}</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: t.description ? 6 : 8 }}>
+        <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg-0)', lineHeight: 1.4, margin: 0, flex: 1 }}>{t.title}</p>
+        {t.archived && (
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-4)', background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>Archived</span>
+        )}
+      </div>
       {t.description && (
         <p style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>
           {t.description}
@@ -752,8 +1061,20 @@ function TaskDetailModal({ task, users, onClose, onUpdated, onDeleted }: {
             </Section>
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 12, flexWrap: 'wrap' }}>
               <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit Task</Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => {
+                  const res = await kanbanApi.archive(t.id);
+                  const updated = { ...t, archived: res.archived };
+                  setT(updated);
+                  onUpdated(updated);
+                }}
+              >
+                {t.archived ? 'Unarchive' : 'Archive'}
+              </Button>
               {(user?.role === 'pm' || user?.role === 'admin') && (
                 <Button size="sm" variant="danger" onClick={() => { kanbanApi.delete(t.id); onDeleted(t.id); }}>Delete</Button>
               )}
