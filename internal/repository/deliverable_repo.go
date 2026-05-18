@@ -44,10 +44,14 @@ func (r *DeliverableRepo) ListByProject(projectID string) ([]*models.Deliverable
 
 func (r *DeliverableRepo) ListByOwner(ownerID string) ([]*models.Deliverable, error) {
 	var deliverables []*models.Deliverable
-	if err := r.db.Where("owner_id = ?", ownerID).Order("due_date").Find(&deliverables).Error; err != nil {
-		return nil, err
-	}
-	return deliverables, nil
+	err := r.db.Raw(`
+		SELECT d.*, pr.name as project_name
+		FROM dmms_deliverables d
+		INNER JOIN dmms_projects pr ON pr.id = d.project_id AND pr.deleted_at IS NULL
+		WHERE d.owner_id = ? AND d.deleted_at IS NULL
+		ORDER BY d.due_date
+	`, ownerID).Scan(&deliverables).Error
+	return deliverables, err
 }
 
 func (r *DeliverableRepo) ListOpenBids(visibility models.Visibility) ([]*models.Deliverable, error) {

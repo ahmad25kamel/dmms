@@ -44,6 +44,7 @@ export const deliverablesApi = {
   createTask: (id: string, body: Partial<Task>) => api.post<Task>(`/deliverables/${id}/tasks`, body),
   updateTask: (id: string, taskId: string, body: Partial<Task>) => api.patch<Task>(`/deliverables/${id}/tasks/${taskId}`, body),
   deleteTask: (id: string, taskId: string) => api.delete<{ deleted: boolean }>(`/deliverables/${id}/tasks/${taskId}`),
+  listChildren: (id: string) => api.get<Deliverable[]>(`/deliverables/${id}/children`),
   listSubtasks: (id: string) => api.get<Task[]>(`/deliverables/${id}/subtasks`),
   createSubtask: (id: string, body: Partial<Task>) => api.post<Task>(`/deliverables/${id}/subtasks`, body),
   updateSubtask: (id: string, subtaskId: string, body: Partial<Task>) =>

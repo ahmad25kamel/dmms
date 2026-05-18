@@ -121,13 +121,18 @@ func (s *DeliverableService) AcceptProposal(proposalID string, pmID string) erro
 			return err
 		}
 
-		// Lock all descendant deliverables (set owner to same contributor)
+		// Lock all descendant deliverables and set owner to same contributor
 		descendantIDs, err := txDeliv.GetAllDescendantIDs(deliverable.ID)
 		if err != nil {
 			return err
 		}
-		for _, childID := range descendantIDs {
-			if err := txDeliv.UpdateStatus(childID, models.DelivAssigned); err != nil {
+		if len(descendantIDs) > 0 {
+			if err := tx.Table("dmms_deliverables").
+				Where("id IN ?", descendantIDs).
+				Updates(map[string]interface{}{
+					"status":   models.DelivAssigned,
+					"owner_id": proposal.ContributorID,
+				}).Error; err != nil {
 				return err
 			}
 		}

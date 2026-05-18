@@ -86,6 +86,8 @@ func main() {
 	mux.Handle("POST /api/dmms/deliverables/{id}/reassign", authMW(pmOnly(http.HandlerFunc(delivH.Reassign))))
 	mux.Handle("GET /api/dmms/deliverables/assigned", authMW(http.HandlerFunc(delivH.MyAssigned)))
 
+	mux.Handle("GET /api/dmms/deliverables/{id}/children", authMW(http.HandlerFunc(delivH.ListChildren)))
+
 	// Tasks
 	mux.Handle("GET /api/dmms/deliverables/{id}/tasks", authMW(http.HandlerFunc(delivH.ListTasks)))
 	mux.Handle("POST /api/dmms/deliverables/{id}/tasks", authMW(pmOnly(http.HandlerFunc(delivH.CreateTask))))

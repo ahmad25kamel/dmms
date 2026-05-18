@@ -122,6 +122,19 @@ func (h *DeliverableHandler) Get(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusOK, d)
 }
 
+func (h *DeliverableHandler) ListChildren(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	children, err := h.repo.ListChildren(id)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to list children")
+		return
+	}
+	if children == nil {
+		children = []*models.Deliverable{}
+	}
+	JSON(w, http.StatusOK, children)
+}
+
 func (h *DeliverableHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	d, err := h.repo.FindByID(id)
