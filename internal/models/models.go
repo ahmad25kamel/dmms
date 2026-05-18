@@ -20,6 +20,7 @@ type User struct {
 	PasswordHash string    `json:"-" gorm:"column:password_hash;not null"`
 	Name         string    `json:"name" gorm:"not null"`
 	Role         Role      `json:"role" gorm:"not null"`
+	Approved     bool      `json:"approved" gorm:"column:approved;not null;default:0"`
 	CreatedAt    time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 }
 

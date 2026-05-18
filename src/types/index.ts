@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  approved: boolean;
   created_at: string;
 }
 

@@ -159,9 +159,12 @@ func main() {
 		handlers.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})))
 
-	// Admin
+	// Admin / User management
 	mux.Handle("GET /api/dmms/admin/users", authMW(adminOnly(http.HandlerFunc(adminH.ListUsers))))
+	mux.Handle("GET /api/dmms/admin/users/pending", authMW(adminOnly(http.HandlerFunc(adminH.ListPendingUsers))))
 	mux.Handle("PATCH /api/dmms/admin/users/{id}", authMW(adminOnly(http.HandlerFunc(adminH.UpdateUserRole))))
+	mux.Handle("POST /api/dmms/admin/users/{id}/approve", authMW(adminOnly(http.HandlerFunc(adminH.ApproveUser))))
+	mux.Handle("POST /api/dmms/admin/users/{id}/reject", authMW(adminOnly(http.HandlerFunc(adminH.RejectUser))))
 	mux.Handle("DELETE /api/dmms/admin/users/{id}", authMW(adminOnly(http.HandlerFunc(adminH.DeleteUser))))
 
 	// Serve uploaded files

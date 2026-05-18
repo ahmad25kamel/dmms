@@ -38,6 +38,7 @@ func (s *AuthService) Register(username, email, name, password string, role mode
 		Email:    email,
 		Name:     name,
 		Role:     role,
+		Approved: false, // requires admin approval before first login
 	}
 	if err := s.users.Create(u, string(hash)); err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
@@ -52,6 +53,9 @@ func (s *AuthService) Login(username, password string) (*models.User, string, er
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
 		return nil, "", fmt.Errorf("invalid credentials")
+	}
+	if !u.Approved {
+		return nil, "", fmt.Errorf("account pending approval")
 	}
 	token, err := s.issueToken(u)
 	if err != nil {

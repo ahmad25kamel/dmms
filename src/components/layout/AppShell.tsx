@@ -83,7 +83,7 @@ const navItems: NavItem[] = [
   { to: '/review',     label: 'Review Center', icon: <Icon.Review />,     roles: ['pm'] },
   { to: '/ledger',     label: 'Rewards',       icon: <Icon.Ledger />,     roles: ['pm','contributor','admin'] },
   { to: '/budget',     label: 'Budget',        icon: <Icon.Budget />,     roles: ['pm','admin'] },
-  { to: '/admin',      label: 'Admin',         icon: <Icon.Users />,      roles: ['admin'] },
+  { to: '/admin',      label: 'Users',         icon: <Icon.Users />,      roles: ['admin'] },
 ];
 
 function initials(name: string) {

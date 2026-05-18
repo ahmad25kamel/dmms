@@ -57,3 +57,33 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 	JSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
+
+func (h *AdminHandler) ListPendingUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.users.ListPending()
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to list pending users")
+		return
+	}
+	if users == nil {
+		users = []*models.User{}
+	}
+	JSON(w, http.StatusOK, users)
+}
+
+func (h *AdminHandler) ApproveUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := h.users.SetApproved(id, true); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to approve user")
+		return
+	}
+	JSON(w, http.StatusOK, map[string]bool{"approved": true})
+}
+
+func (h *AdminHandler) RejectUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := h.users.Delete(id); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to reject user")
+		return
+	}
+	JSON(w, http.StatusOK, map[string]bool{"rejected": true})
+}

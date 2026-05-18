@@ -21,7 +21,8 @@ func (r *UserRepo) WithDB(db *gorm.DB) *UserRepo {
 
 func (r *UserRepo) Create(u *models.User, passwordHash string) error {
 	u.PasswordHash = passwordHash
-	return r.db.Create(u).Error
+	// Use explicit column list so bool false (zero value) is not skipped by GORM
+	return r.db.Select("id", "username", "email", "password_hash", "name", "role", "approved", "created_at").Create(u).Error
 }
 
 func (r *UserRepo) FindByEmail(email string) (*models.User, string, error) {
@@ -68,7 +69,7 @@ func (r *UserRepo) List() ([]*models.User, error) {
 func (r *UserRepo) ListPaged(limit, offset int) ([]*models.User, int64, error) {
 	var users []*models.User
 	var total int64
-	q := r.db.Model(&models.User{})
+	q := r.db.Model(&models.User{}).Where("approved = true")
 	q.Count(&total)
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -79,8 +80,20 @@ func (r *UserRepo) ListPaged(limit, offset int) ([]*models.User, int64, error) {
 	return users, total, nil
 }
 
+func (r *UserRepo) ListPending() ([]*models.User, error) {
+	var users []*models.User
+	if err := r.db.Where("approved = false").Order("created_at DESC").Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (r *UserRepo) UpdateRole(id string, role models.Role) error {
 	return r.db.Model(&models.User{}).Where("id = ?", id).Update("role", role).Error
+}
+
+func (r *UserRepo) SetApproved(id string, approved bool) error {
+	return r.db.Model(&models.User{}).Where("id = ?", id).Update("approved", approved).Error
 }
 
 func (r *UserRepo) Delete(id string) error {

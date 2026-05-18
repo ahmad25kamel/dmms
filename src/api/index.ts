@@ -134,6 +134,9 @@ export const kanbanApi = {
 // Admin
 export const adminApi = {
   listUsers: (limit = 20, offset = 0) => api.get<{ items: User[]; total: number; limit: number; offset: number }>(`/admin/users?limit=${limit}&offset=${offset}`),
+  listPending: () => api.get<User[]>('/admin/users/pending'),
   updateRole: (id: string, role: string) => api.patch<{ updated: boolean }>(`/admin/users/${id}`, { role }),
+  approveUser: (id: string) => api.post<{ approved: boolean }>(`/admin/users/${id}/approve`, {}),
+  rejectUser: (id: string) => api.post<{ rejected: boolean }>(`/admin/users/${id}/reject`, {}),
   deleteUser: (id: string) => api.delete<{ deleted: boolean }>(`/admin/users/${id}`),
 };

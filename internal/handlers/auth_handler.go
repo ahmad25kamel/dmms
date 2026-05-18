@@ -71,7 +71,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	u, token, err := h.auth.Login(body.Username, body.Password)
 	if err != nil {
-		Err(w, http.StatusUnauthorized, "invalid credentials")
+		msg := "invalid credentials"
+		if err.Error() == "account pending approval" {
+			msg = "account pending approval"
+		}
+		Err(w, http.StatusUnauthorized, msg)
 		return
 	}
 	JSON(w, http.StatusOK, map[string]any{"user": u, "token": token})
