@@ -111,6 +111,7 @@ export interface Proposal {
   created_at: string;
   contributor_name?: string;
   deliverable_title?: string;
+  project_name?: string;
 }
 
 export type SubmissionStatus = 'pending' | 'approved' | 'revision_requested' | 'rejected';

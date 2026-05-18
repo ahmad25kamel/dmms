@@ -140,6 +140,33 @@ func (s *DeliverableService) AcceptProposal(proposalID string, pmID string) erro
 			return err
 		}
 
+		// Add contributor as member of every task (ignore duplicates)
+		var taskIDs []string
+		if err := tx.Table("dmms_tasks").
+			Select("id").
+			Where("deliverable_id IN ?", allDeliverableIDs).
+			Pluck("id", &taskIDs).Error; err != nil {
+			return err
+		}
+		for _, taskID := range taskIDs {
+			// Skip if already a member, otherwise insert with a fresh UUID
+			var count int64
+			tx.Table("dmms_task_members").
+				Where("task_id = ? AND user_id = ?", taskID, proposal.ContributorID).
+				Count(&count)
+			if count == 0 {
+				member := &models.TaskMember{
+					ID:       uuid.New().String(),
+					TaskID:   taskID,
+					UserID:   proposal.ContributorID,
+					JoinedAt: proposal.CreatedAt,
+				}
+				if err := tx.Create(member).Error; err != nil {
+					return err
+				}
+			}
+		}
+
 		// Update project budget_allocated
 		return s.recomputeProjectBudget(tx, deliverable.ProjectID)
 	})

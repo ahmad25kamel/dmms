@@ -52,8 +52,10 @@ func (r *ProposalRepo) ListByDeliverable(deliverableID string) ([]*models.Propos
 func (r *ProposalRepo) ListByContributor(contributorID string) ([]*models.Proposal, error) {
 	var proposals []*models.Proposal
 	err := r.db.Table("dmms_proposals p").
-		Select("p.*, u.name as contributor_name").
-		Joins("JOIN dmms_users u ON u.id=p.contributor_id").
+		Select("p.*, u.name as contributor_name, d.title as deliverable_title, pr.name as project_name").
+		Joins("JOIN dmms_users u ON u.id = p.contributor_id").
+		Joins("JOIN dmms_deliverables d ON d.id = p.deliverable_id").
+		Joins("JOIN dmms_projects pr ON pr.id = d.project_id").
 		Where("p.contributor_id = ?", contributorID).
 		Order("p.created_at DESC").Scan(&proposals).Error
 	return proposals, err
@@ -90,12 +92,12 @@ func (r *ProposalRepo) CountByProject(projectID string) ([]ProposalDeliverableCo
 func (r *ProposalRepo) ListByPM(pmID string) ([]*models.Proposal, error) {
 	var proposals []*models.Proposal
 	err := r.db.Table("dmms_proposals p").
-		Select("p.*, u.name as contributor_name, d.title as deliverable_title").
+		Select("p.*, u.name as contributor_name, d.title as deliverable_title, pr.name as project_name").
 		Joins("JOIN dmms_users u ON u.id = p.contributor_id").
 		Joins("JOIN dmms_deliverables d ON d.id = p.deliverable_id").
 		Joins("JOIN dmms_projects pr ON pr.id = d.project_id").
 		Where("pr.pm_id = ? AND d.deleted_at IS NULL AND pr.deleted_at IS NULL", pmID).
-		Order("p.created_at DESC").
+		Order("d.id, p.bid_amount ASC").
 		Scan(&proposals).Error
 	return proposals, err
 }

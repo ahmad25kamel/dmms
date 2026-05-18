@@ -228,15 +228,17 @@ const (
 )
 
 type Proposal struct {
-	ID              string         `json:"id" gorm:"primaryKey;size:191"`
-	DeliverableID   string         `json:"deliverable_id" gorm:"column:deliverable_id;not null;size:191"`
-	ContributorID   string         `json:"contributor_id" gorm:"column:contributor_id;not null;size:191"`
-	BidAmount       float64        `json:"bid_amount" gorm:"column:bid_amount;not null"`
-	ETADate         *time.Time     `json:"eta_date" gorm:"column:eta_date"`
-	Message         string         `json:"message"`
-	Status          ProposalStatus `json:"status" gorm:"not null;default:'pending'"`
-	CreatedAt       time.Time      `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
-	ContributorName string         `json:"contributor_name,omitempty" gorm:"->"`
+	ID               string         `json:"id" gorm:"primaryKey;size:191"`
+	DeliverableID    string         `json:"deliverable_id" gorm:"column:deliverable_id;not null;size:191"`
+	ContributorID    string         `json:"contributor_id" gorm:"column:contributor_id;not null;size:191"`
+	BidAmount        float64        `json:"bid_amount" gorm:"column:bid_amount;not null"`
+	ETADate          *time.Time     `json:"eta_date" gorm:"column:eta_date"`
+	Message          string         `json:"message"`
+	Status           ProposalStatus `json:"status" gorm:"not null;default:'pending'"`
+	CreatedAt        time.Time      `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
+	ContributorName  string         `json:"contributor_name,omitempty" gorm:"->"`
+	DeliverableTitle string         `json:"deliverable_title,omitempty" gorm:"->"`
+	ProjectName      string         `json:"project_name,omitempty" gorm:"->"`
 }
 
 func (Proposal) TableName() string { return "dmms_proposals" }

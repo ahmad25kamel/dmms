@@ -93,7 +93,10 @@ func (r *TaskRepo) CountAll(status string) (int64, error) {
 func (r *TaskRepo) CountForContributor(userID, status string) (int64, error) {
 	var n int64
 	q := r.db.Model(&models.Task{}).InnerJoins("Project").InnerJoins("Deliverable").
-		Where("(dmms_tasks.assigned_to = ? OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id=dmms_tasks.deliverable_id AND dd.owner_id=? AND dd.deleted_at IS NULL))", userID, userID)
+		Where(`(dmms_tasks.assigned_to = ?
+			OR EXISTS (SELECT 1 FROM dmms_task_members tm WHERE tm.task_id = dmms_tasks.id AND tm.user_id = ?)
+			OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id = dmms_tasks.deliverable_id AND dd.owner_id = ? AND dd.deleted_at IS NULL))`,
+			userID, userID, userID)
 	if status != "" {
 		q = q.Where("dmms_tasks.status = ?", status)
 	}
@@ -147,8 +150,11 @@ func (r *TaskRepo) ListForContributor(userID string, limit, offset int, status s
 		InnerJoins("Deliverable").
 		Joins("AssignedUser").
 		Joins("Creator").
-		Where("(dmms_tasks.assigned_to = ? OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id=dmms_tasks.deliverable_id AND dd.owner_id=? AND dd.deleted_at IS NULL))", userID, userID)
-		
+		Where(`(dmms_tasks.assigned_to = ?
+			OR EXISTS (SELECT 1 FROM dmms_task_members tm WHERE tm.task_id = dmms_tasks.id AND tm.user_id = ?)
+			OR EXISTS (SELECT 1 FROM dmms_deliverables dd WHERE dd.id = dmms_tasks.deliverable_id AND dd.owner_id = ? AND dd.deleted_at IS NULL))`,
+			userID, userID, userID)
+
 	if status != "" {
 		q = q.Where("dmms_tasks.status = ?", status)
 	}
