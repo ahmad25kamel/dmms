@@ -8,14 +8,27 @@ import { useAuth } from '../../store/authStore';
 export function MarketplacePage() {
   const { user } = useAuth();
   const [bids, setBids] = useState<Deliverable[]>([]);
+  const [myBidIds, setMyBidIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Deliverable | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [search, setSearch] = useState('');
+  const [hideMyBids, setHideMyBids] = useState(false);
+
+  function reload() {
+    marketplaceApi.listBids().then(setBids);
+    if (user?.role === 'contributor') {
+      proposalsApi.mine().then(ps => setMyBidIds(new Set(ps.map(p => p.deliverable_id))));
+    }
+  }
 
   useEffect(() => {
-    marketplaceApi.listBids().then(setBids).finally(() => setLoading(false));
-  }, []);
+    const p1 = marketplaceApi.listBids().then(setBids);
+    const p2 = user?.role === 'contributor'
+      ? proposalsApi.mine().then(ps => setMyBidIds(new Set(ps.map(p => p.deliverable_id))))
+      : Promise.resolve();
+    Promise.all([p1, p2]).finally(() => setLoading(false));
+  }, [user?.role]);
 
   async function openDetail(d: Deliverable) {
     setSelected(d);
@@ -26,27 +39,35 @@ export function MarketplacePage() {
   if (loading) return <Spinner />;
 
   const q = search.trim().toLowerCase();
-  const filteredBids = q
-    ? bids.filter(b => b.title.toLowerCase().includes(q) || (b.brief ?? '').toLowerCase().includes(q))
-    : bids;
-  const projectTrees = buildTreesByProject(filteredBids);
+  const filtered = bids
+    .filter(b => !hideMyBids || !myBidIds.has(b.id))
+    .filter(b => !q || b.title.toLowerCase().includes(q) || (b.brief ?? '').toLowerCase().includes(q));
+  const projectTrees = buildTreesByProject(filtered);
 
   return (
     <div className="dmms-page">
       <div className="dmms-page-head">
         <div>
           <h1>Marketplace</h1>
-          <p className="dmms-page-sub">{filteredBids.length} of {bids.length} open bid{bids.length !== 1 ? 's' : ''}</p>
+          <p className="dmms-page-sub">{filtered.length} of {bids.length} open bid{bids.length !== 1 ? 's' : ''}</p>
         </div>
-        <Input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search deliverables…"
-          style={{ width: 220 }}
-        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {user?.role === 'contributor' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--fg-2)', whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={hideMyBids} onChange={e => setHideMyBids(e.target.checked)} />
+              Hide my bids
+            </label>
+          )}
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search deliverables…"
+            style={{ width: 220 }}
+          />
+        </div>
       </div>
 
-      {bids.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState title="No open bids" description="There are no deliverables open for bidding right now." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -61,6 +82,7 @@ export function MarketplacePage() {
                     depth={0}
                     userRole={user?.role}
                     onOpenDetail={openDetail}
+                    onBidSubmitted={reload}
                   />
                 ))}
               </div>
@@ -75,6 +97,7 @@ export function MarketplacePage() {
           tasks={tasks}
           userRole={user?.role}
           onClose={() => setSelected(null)}
+          onBidSubmitted={reload}
         />
       )}
     </div>
@@ -83,7 +106,7 @@ export function MarketplacePage() {
 
 function buildTreesByProject(bids: Deliverable[]) {
   const projectsMap = new Map<string, Deliverable[]>();
-  
+
   bids.forEach(b => {
     const projectName = b.project_name || 'Individual Bids';
     if (!projectsMap.has(projectName)) projectsMap.set(projectName, []);
@@ -126,11 +149,12 @@ function buildTreesByProject(bids: Deliverable[]) {
   return result;
 }
 
-function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail }: {
+function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail, onBidSubmitted }: {
   deliverable: Deliverable;
   depth: number;
   userRole?: string;
   onOpenDetail: (d: Deliverable) => void;
+  onBidSubmitted: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = d.children && d.children.length > 0;
@@ -141,8 +165,8 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail }: {
         <button className="dmms-tree-toggle" onClick={() => setExpanded(e => !e)}>
           {hasChildren ? (
             expanded
-              ? <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-              : <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 6 15 12 9 18"/></svg>
+              ? <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9" /></svg>
+              : <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 6 15 12 9 18" /></svg>
           ) : <span style={{ width: 12, display: 'inline-block' }} />}
         </button>
 
@@ -152,7 +176,7 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail }: {
             <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 12 }}>{formatCurrency(d.max_budget)}</span>
             {d.due_date && <span className="meta">Due {formatDate(d.due_date)}</span>}
             {(d.proposal_count ?? 0) > 0 && (
-              <span style={{ fontSize: 11, background: 'var(--accent)', color: '#fff', borderRadius: 99, padding: '1px 7px', fontWeight: 600 }}>
+              <span style={{ fontSize: 11, background: 'var(--kamel-blue)', color: '#fff', borderRadius: 99, padding: '1px 7px', fontWeight: 600 }}>
                 {d.proposal_count} bid{d.proposal_count !== 1 ? 's' : ''}
               </span>
             )}
@@ -166,7 +190,7 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail }: {
 
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <Button size="sm" variant="secondary" onClick={() => onOpenDetail(d)}>Details</Button>
-          {userRole === 'contributor' && <BidButton deliverable={d} />}
+          {userRole === 'contributor' && <BidButton deliverable={d} onBidSubmitted={onBidSubmitted} />}
         </div>
       </div>
 
@@ -177,23 +201,24 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail }: {
           depth={depth + 1}
           userRole={userRole}
           onOpenDetail={onOpenDetail}
+          onBidSubmitted={onBidSubmitted}
         />
       ))}
     </div>
   );
 }
 
-function BidButton({ deliverable }: { deliverable: Deliverable }) {
+function BidButton({ deliverable, onBidSubmitted }: { deliverable: Deliverable; onBidSubmitted: () => void }) {
   const [show, setShow] = useState(false);
   return (
     <>
       <Button size="sm" onClick={() => setShow(true)}>Place Bid</Button>
-      {show && <ProposalForm deliverable={deliverable} onClose={() => setShow(false)} />}
+      {show && <ProposalForm deliverable={deliverable} onClose={() => setShow(false)} onBidSubmitted={onBidSubmitted} />}
     </>
   );
 }
 
-function ProposalForm({ deliverable, onClose }: { deliverable: Deliverable; onClose: () => void }) {
+function ProposalForm({ deliverable, onClose, onBidSubmitted }: { deliverable: Deliverable; onClose: () => void; onBidSubmitted: () => void }) {
   const [bid, setBid] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
@@ -211,6 +236,7 @@ function ProposalForm({ deliverable, onClose }: { deliverable: Deliverable; onCl
     try {
       await proposalsApi.submit(deliverable.id, { bid_amount: amount, message });
       setDone(true);
+      onBidSubmitted();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit bid');
     } finally {
@@ -229,7 +255,7 @@ function ProposalForm({ deliverable, onClose }: { deliverable: Deliverable; onCl
       ) : (
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <p className="body-sm">Max budget: <strong>{formatCurrency(deliverable.max_budget)}</strong></p>
-          <FormField label="Your bid amount ($)">
+          <FormField label="Your bid amount (Rp)">
             <Input type="number" value={bid} onChange={e => setBid(e.target.value)} max={deliverable.max_budget} min="1" required />
           </FormField>
           <FormField label="Message to PM">
@@ -246,8 +272,8 @@ function ProposalForm({ deliverable, onClose }: { deliverable: Deliverable; onCl
   );
 }
 
-function BidDetailModal({ deliverable, tasks, userRole, onClose }: {
-  deliverable: Deliverable; tasks: Task[]; userRole?: string; onClose: () => void;
+function BidDetailModal({ deliverable, tasks, userRole, onClose, onBidSubmitted }: {
+  deliverable: Deliverable; tasks: Task[]; userRole?: string; onClose: () => void; onBidSubmitted: () => void;
 }) {
   const [showBid, setShowBid] = useState(false);
   return (
@@ -288,7 +314,7 @@ function BidDetailModal({ deliverable, tasks, userRole, onClose }: {
             </ul>
           </div>
         )}
-        {showBid && <ProposalForm deliverable={deliverable} onClose={onClose} />}
+        {showBid && <ProposalForm deliverable={deliverable} onClose={onClose} onBidSubmitted={onBidSubmitted} />}
       </div>
     </Modal>
   );

@@ -93,7 +93,7 @@ type Deliverable struct {
 	CreatedAt          time.Time         `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 	UpdatedAt          time.Time         `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
 	Children           []*Deliverable    `json:"children,omitempty" gorm:"foreignKey:ParentID"`
-	ProposalCount      int               `json:"proposal_count,omitempty" gorm:"->"`
+	ProposalCount      int               `json:"proposal_count" gorm:"->"`
 	ProjectName        string            `json:"project_name,omitempty" gorm:"->"`
 	Project            *Project          `json:"-" gorm:"foreignKey:ProjectID"`
 	DeletedAt          gorm.DeletedAt    `json:"deleted_at" gorm:"index"`
