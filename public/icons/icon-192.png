@@ -1,0 +1,8 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192'>
+  <rect width='192' height='192' fill='#F9FAFB'/>
+  <rect x='0' y='0' width='192' height='192' rx='42.24' fill='#2563EB'/>
+  <g transform='translate(96, 96)' fill='none' stroke='white' stroke-width='9.600000000000001' stroke-linecap='round' stroke-linejoin='round'>
+    <rect x='-48' y='-48' width='96' height='96' rx='9.600000000000001' fill='none' stroke='white' stroke-width='9.600000000000001'/>
+    <path d='M-24 0 L4.800000000000001 19.200000000000003 L28.799999999999997 -19.200000000000003' fill='none' stroke='white' stroke-width='11.52'/>
+  </g>
+</svg>
