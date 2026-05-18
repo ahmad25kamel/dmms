@@ -276,15 +276,21 @@ All endpoints are prefixed with `/api/dmms/`.
 
 ## Roadmap
 
-Planned beyond the QA sprint:
+DMMS is evolving toward a **one-fit-all** project management platform for freelancers, agencies, product teams, and enterprises — available as both a self-hosted binary and a multi-tenant SaaS.
 
-- Email notifications on proposal acceptance and submission review
-- Public marketplace view (unauthenticated browse of open bids)
-- Gantt chart / timeline view
-- Budget analytics dashboard
-- Docker Compose setup for easy self-hosting
-- Webhook support for external integrations
-- CI pipeline (GitHub Actions — Playwright on push)
+| Milestone | Theme | Status |
+|-----------|-------|--------|
+| **M1** Analytics & Visibility | Budget dashboards, Gantt chart, burn-down, contributor reports | Planned |
+| **M2** Real-Time & Communication | Email notifications, WebSocket live updates, notification center | Planned |
+| **M3** Integrations & Automation | Webhooks, GitHub/GitLab sync, Slack alerts, Docker Compose, CI | Planned |
+| **M4** Methodology Flexibility | Sprint planning, time tracking, custom fields, workflow templates | Planned |
+| **M5** Client-Facing & Marketplace | Public marketplace, client portal, invoice generation | Planned |
+| **M6** Multi-Tenancy & SaaS | Organizations, OAuth, Stripe billing, self-hosted bypass | Planned |
+| **M7** Enterprise & Compliance | Audit log, advanced RBAC, SSO, 2FA, GDPR tools | Planned |
+| **M8** Mobile & Accessibility | PWA, full WCAG 2.1 AA, responsive layouts | Planned |
+| **M9** AI & Automation | AI deliverable breakdown, proposal scoring, expanded MCP tools | Planned |
+
+See [ROADMAP.md](ROADMAP.md) for the full plan — goals, deliverables, technical notes, and sequencing for each milestone.
 
 Have an idea? [Open a discussion](../../discussions) or submit a feature request issue.
 
