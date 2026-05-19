@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	DBDriver  string // "sqlite" or "mysql"
 	DBPath    string
 	JWTSecret string
 	Port      string
@@ -38,11 +39,18 @@ func Load() *Config {
 		dbPath = "dmms.db"
 	}
 
+	dbHost := os.Getenv("DB_HOST")
+	dbDriver := "sqlite"
+	if dbHost != "" {
+		dbDriver = "mysql"
+	}
+
 	return &Config{
+		DBDriver:   dbDriver,
 		DBPath:     dbPath,
 		JWTSecret:  secret,
 		Port:       port,
-		DBHost:     os.Getenv("DB_HOST"),
+		DBHost:     dbHost,
 		DBPort:     os.Getenv("DB_PORT"),
 		DBUser:     os.Getenv("DB_USERNAME"),
 		DBPassword: os.Getenv("DB_PASSWORD"),
