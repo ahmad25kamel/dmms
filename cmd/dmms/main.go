@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"dmms/internal/config"
 	"dmms/internal/database"
@@ -172,9 +173,22 @@ func main() {
 
 	// SPA fallback
 	fs := http.FileServer(http.Dir("./dist"))
+	absDist, err := filepath.Abs("dist")
+	if err != nil {
+		log.Fatal(err)
+	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join("dist", r.URL.Path)
-		if _, err := os.Stat(path); os.IsNotExist(err) || r.URL.Path == "/" {
+		cleanPath := filepath.Clean("/" + r.URL.Path)
+		relPath := strings.TrimPrefix(cleanPath, "/")
+		resolvedPath := filepath.Join(absDist, relPath)
+
+		relToDist, err := filepath.Rel(absDist, resolvedPath)
+		if err != nil || strings.HasPrefix(relToDist, "..") || relToDist == "." && r.URL.Path == "/" {
+			http.ServeFile(w, r, "dist/index.html")
+			return
+		}
+
+		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) || r.URL.Path == "/" {
 			http.ServeFile(w, r, "dist/index.html")
 			return
 		}
