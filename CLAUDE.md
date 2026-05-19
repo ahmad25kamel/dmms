@@ -18,9 +18,14 @@ Three roles: **PM** (create projects, review bids, approve submissions), **Contr
 ### Backend (Go)
 
 ```bash
-source .env        # load env vars first
-go run ./cmd/dmms       # dev server on :3005
-go build -o dmms-server ./cmd/dmms   # production build
+# Dev — SQLite is used automatically when DB_HOST is not set
+DMMS_JWT_SECRET=any-secret go run ./cmd/dmms   # starts on :3005, creates dmms.db
+
+# With a .env file
+source .env && go run ./cmd/dmms
+
+# Production build
+go build -o dmms-server ./cmd/dmms
 ```
 
 ### Frontend (React/Vite)
@@ -29,6 +34,7 @@ go build -o dmms-server ./cmd/dmms   # production build
 npm run dev             # dev server on :3000 (proxies /api/dmms → :3005)
 npm run build           # production build → dist/
 npm run build:mcp       # compile MCP server → dist-mcp/index.js
+npm run type-check      # TypeScript type check (linter)
 ```
 
 ### Full Production Build
@@ -43,49 +49,85 @@ source .env && ./dmms-server
 ./scripts/deploy-service.sh
 ```
 
-### Environment Setup
+### End-to-End Tests
 
 ```bash
-cp .env.example .env   # then edit
-# Required: DMMS_JWT_SECRET
-# DB_*: MySQL connection settings (DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD)
-# DMMS_PORT defaults to 3005
+npx playwright test             # run all e2e tests (requires running server on :3000)
+npx playwright test e2e/auth.spec.ts   # run a single spec
+npx playwright test --list      # list all tests without running
 ```
 
-Database migrations run automatically via GORM AutoMigrate on startup.
+## Environment Setup
+
+```bash
+cp .env.example .env   # then edit with your values
+```
+
+**Required:**
+- `DMMS_JWT_SECRET` — any long random string (e.g. `openssl rand -hex 32`)
+
+**Optional:**
+- `DMMS_PORT` — server port (default: `3005`)
+- `DMMS_DB_PATH` — SQLite file path (default: `dmms.db`)
+
+**MySQL (production only) — omit these for SQLite dev:**
+- `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
+
+### Database Driver Selection
+
+The driver is chosen automatically at startup — no config flag needed:
+
+| `DB_HOST` set? | Driver | Database file/server |
+|---|---|---|
+| No (default) | **SQLite** | `dmms.db` in project root |
+| Yes | **MySQL** | connect to `DB_HOST:DB_PORT` |
+
+Database schema migrations run automatically via GORM AutoMigrate on every startup.
 
 ## Architecture
 
-### Backend: `internal/dmms/`
+### Backend: `internal/`
 
-Layered Go architecture using standard `net/http` with GORM + MySQL:
+Layered Go architecture using standard `net/http` with GORM:
 
-- **`config/`** — loads env vars into a Config struct
-- **`database/`** — GORM setup + AutoMigrate
-- **`models/`** — Go structs and status constants (deliverable/proposal/submission states)
-- **`repository/`** — data access layer; all DB queries live here
-- **`service/`** — business logic (proposal acceptance, reward ledger writes, budget calculations)
-- **`handlers/`** — HTTP handlers, one file per domain (projects, deliverables, proposals, submissions, rewards, admin)
-- **`middleware/`** — JWT auth middleware; injects user into request context
+```
+internal/
+  config/       config.go         — loads env vars; exposes DBDriver ("sqlite"|"mysql")
+  database/     db.go             — opens GORM connection, runs AutoMigrate
+                migrations.sql    — reference MySQL DDL (not executed at runtime)
+  models/       models.go         — GORM structs + status constants for all 11 tables
+  repository/   *.go              — data access layer; all DB queries live here
+  service/      *.go              — business logic (proposal acceptance, rewards, budgets)
+  handlers/     *_handler.go      — HTTP handlers, one file per domain:
+                  auth, project, deliverable, proposal, submission,
+                  reward, kanban, marketplace, admin
+                response.go       — shared JSON response helpers
+  middleware/   *.go              — JWT auth; injects user into request context
+```
 
-All API endpoints are prefixed `/api/dmms/`. The built frontend (`dist/`) is embedded in the binary and served at `/`.
+All API endpoints are prefixed `/api/dmms/`. The built frontend (`dist/`) is embedded in the Go binary and served at `/`.
+
+Entry point: `cmd/dmms/main.go`
 
 ### Frontend: `src/`
 
-React 19 + TypeScript + Vite with the KMG design system (Inter + JetBrains Mono fonts):
+React 19 + TypeScript + Vite:
 
-- **`api/`** — typed API client functions (one file per domain)
-- **`components/`** — shared UI components (KMG design system)
-- **`pages/`** — route-level page components; routes defined in `App.tsx`
-- **`store/`** — React context for auth state (JWT token, current user)
-- **`types/`** — TypeScript interfaces mirroring Go models
-- **`mcp/`** — MCP server source (`index.ts`), compiled separately via `tsconfig.mcp.json`
+```
+src/
+  api/          — typed fetch wrappers, one file per domain
+  components/   — shared UI (KMG design system: Inter + JetBrains Mono)
+  pages/        — route-level components; routes defined in App.tsx
+  store/        — React context: JWT token + current user
+  types/        — TypeScript interfaces mirroring Go models
+  mcp/          — MCP server source (index.ts), compiled separately
+```
 
 Path alias `@` resolves to the project root.
 
 ### MCP Server: `src/mcp/index.ts` → `dist-mcp/index.js`
 
-Node.js stdio MCP server exposing 30 tools for AI-assisted management. Built with `npm run build:mcp` using a separate tsconfig. Configure in `.claude/settings.json`:
+Node.js stdio MCP server exposing 30 tools for AI-assisted management. Build with `npm run build:mcp`. Configure in `.claude/settings.json`:
 
 ```json
 {
@@ -102,16 +144,41 @@ Node.js stdio MCP server exposing 30 tools for AI-assisted management. Built wit
 }
 ```
 
-Get a token: `curl -s -X POST http://localhost:3005/api/dmms/auth/login -H "Content-Type: application/json" -d '{"email":"...","password":"..."}' | jq -r '.data.token'`
+Get a token:
+```bash
+curl -s -X POST http://localhost:3005/api/dmms/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"...","password":"..."}' | jq -r '.data.token'
+```
+
+### Session Start Hook (Claude Code on the web)
+
+`.claude/hooks/session-start.sh` runs automatically on remote sessions and installs:
+- npm packages (`npm install`)
+- Go module cache (`go mod download`)
+- Playwright Chromium browser (for e2e tests)
 
 ## Key Domain Concepts
 
 - **Deliverable tree**: recursive parent/child structure; PMs build hierarchies of work items
-- **Deliverable lifecycle**: `draft → open (for bids) → assigned → submitted → approved/revision/rejected`
-- **Proposal flow**: Contributor submits proposal on an open deliverable → PM accepts one → deliverable becomes assigned
-- **Submission flow**: Contributor submits work → PM approves/requests revision/rejects
+- **Deliverable lifecycle**: `draft → open → assigned → submitted → approved / revision / rejected`
+- **Proposal flow**: Contributor submits proposal on an open deliverable → PM accepts one → deliverable becomes `assigned`
+- **Submission flow**: Contributor submits work → PM approves / requests revision / rejects
 - **Rewards ledger**: approved submissions auto-create ledger entries tracking contributor earnings and PM budget savings
+- **Kanban board**: cross-project task board; tasks have statuses `backlog → todo → in_progress → done`
 
-## Notes
+## Data Models (11 tables)
 
-- `dmms.db` is a local SQLite artifact; production uses MySQL
+| Table | Key fields |
+|---|---|
+| `dmms_users` | id, username, email, role (pm/contributor/admin), approved |
+| `dmms_projects` | id, name, pm_id, budget_ceiling/total/allocated/saved, status |
+| `dmms_deliverables` | id, project_id, parent_id (recursive), status, visibility, max_budget |
+| `dmms_tasks` | id, deliverable_id, project_id, assigned_to, status, position |
+| `dmms_task_comments` | id, task_id, author_id, body, file_uploads |
+| `dmms_task_members` | id, task_id, user_id |
+| `dmms_proposals` | id, deliverable_id, contributor_id, bid_amount, status |
+| `dmms_submissions` | id, deliverable_id, contributor_id, status, reviewer_id |
+| `dmms_reward_ledger` | id, user_id, deliverable_id, project_id, amount |
+| `dmms_comment_mentions` | id, comment_id, user_id, username |
+| `dmms_notifications` | id, user_id, kind, payload, read |
