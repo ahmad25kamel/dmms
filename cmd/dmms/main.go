@@ -35,6 +35,7 @@ func main() {
 	submissionRepo := repository.NewSubmissionRepo(db)
 	rewardRepo := repository.NewRewardRepo(db)
 	notifRepo := repository.NewNotificationRepo(db)
+	auditRepo := repository.NewAuditRepo(db)
 
 	// Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
@@ -42,13 +43,14 @@ func main() {
 
 	// Handlers
 	authH := handlers.NewAuthHandler(authSvc, userRepo)
-	projectH := handlers.NewProjectHandler(projectRepo)
-	delivH := handlers.NewDeliverableHandler(deliverableRepo, taskRepo, delivSvc, projectRepo)
-	proposalH := handlers.NewProposalHandler(proposalRepo, deliverableRepo, projectRepo, delivSvc)
-	submissionH := handlers.NewSubmissionHandler(submissionRepo, deliverableRepo, taskRepo, delivSvc)
+	projectH := handlers.NewProjectHandler(projectRepo, auditRepo)
+	delivH := handlers.NewDeliverableHandler(deliverableRepo, taskRepo, delivSvc, projectRepo, auditRepo)
+	proposalH := handlers.NewProposalHandler(proposalRepo, deliverableRepo, projectRepo, delivSvc, auditRepo)
+	submissionH := handlers.NewSubmissionHandler(submissionRepo, deliverableRepo, taskRepo, delivSvc, auditRepo)
 	marketH := handlers.NewMarketplaceHandler(deliverableRepo)
 	rewardH := handlers.NewRewardHandler(rewardRepo)
-	adminH := handlers.NewAdminHandler(userRepo)
+	adminH := handlers.NewAdminHandler(userRepo, auditRepo)
+	auditH := handlers.NewAuditHandler(auditRepo)
 	kanbanH := handlers.NewKanbanHandler(taskRepo, kanbanRepo, userRepo, notifRepo, deliverableRepo)
 
 	// Auth middleware
@@ -167,6 +169,9 @@ func main() {
 	mux.Handle("POST /api/dmms/admin/users/{id}/approve", authMW(adminOnly(http.HandlerFunc(adminH.ApproveUser))))
 	mux.Handle("POST /api/dmms/admin/users/{id}/reject", authMW(adminOnly(http.HandlerFunc(adminH.RejectUser))))
 	mux.Handle("DELETE /api/dmms/admin/users/{id}", authMW(adminOnly(http.HandlerFunc(adminH.DeleteUser))))
+
+	// Audit trail (admin only)
+	mux.Handle("GET /api/dmms/admin/audit", authMW(adminOnly(http.HandlerFunc(auditH.List))))
 
 	// Serve uploaded files
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))

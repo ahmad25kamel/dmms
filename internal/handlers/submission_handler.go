@@ -13,11 +13,13 @@ import (
 	"github.com/google/uuid"
 )
 
+
 type SubmissionHandler struct {
 	submissions  *repository.SubmissionRepo
 	deliverables *repository.DeliverableRepo
 	subtasks     *repository.TaskRepo
 	delivSvc     *service.DeliverableService
+	audit        *repository.AuditRepo
 }
 
 func NewSubmissionHandler(
@@ -25,8 +27,9 @@ func NewSubmissionHandler(
 	deliverables *repository.DeliverableRepo,
 	subtasks *repository.TaskRepo,
 	delivSvc *service.DeliverableService,
+	audit *repository.AuditRepo,
 ) *SubmissionHandler {
-	return &SubmissionHandler{submissions: submissions, deliverables: deliverables, subtasks: subtasks, delivSvc: delivSvc}
+	return &SubmissionHandler{submissions: submissions, deliverables: deliverables, subtasks: subtasks, delivSvc: delivSvc, audit: audit}
 }
 
 
@@ -112,6 +115,8 @@ func (h *SubmissionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.audit.Log(contributorID, "submission.submit", "submission", s.ID, d.Title,
+		fmt.Sprintf(`{"deliverable_id":"%s"}`, deliverableID))
 	JSON(w, http.StatusCreated, s)
 }
 
@@ -141,10 +146,18 @@ func (h *SubmissionHandler) PendingForPM(w http.ResponseWriter, r *http.Request)
 func (h *SubmissionHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	reviewerID := middleware.GetUserID(r)
+	sub, _ := h.submissions.FindByID(id)
 	if err := h.delivSvc.ApproveSubmission(id, reviewerID, h.submissions); err != nil {
 		Err(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	entityName := id
+	if sub != nil {
+		if d, err := h.deliverables.FindByID(sub.DeliverableID); err == nil {
+			entityName = d.Title
+		}
+	}
+	h.audit.Log(reviewerID, "submission.approve", "submission", id, entityName, "")
 	JSON(w, http.StatusOK, map[string]bool{"approved": true})
 }
 
@@ -169,6 +182,12 @@ func (h *SubmissionHandler) RequestRevision(w http.ResponseWriter, r *http.Reque
 			Err(w, http.StatusInternalServerError, "revision requested but failed to update deliverable status")
 			return
 		}
+		entityName := sub.DeliverableID
+		if d, err := h.deliverables.FindByID(sub.DeliverableID); err == nil {
+			entityName = d.Title
+		}
+		h.audit.Log(reviewerID, "submission.request_revision", "submission", id, entityName,
+			fmt.Sprintf(`{"notes":"%s"}`, body.Notes))
 	}
 	JSON(w, http.StatusOK, map[string]bool{"revision_requested": true})
 }
@@ -194,6 +213,11 @@ func (h *SubmissionHandler) RejectSubmission(w http.ResponseWriter, r *http.Requ
 			Err(w, http.StatusInternalServerError, "submission rejected but failed to update deliverable status")
 			return
 		}
+		entityName := sub.DeliverableID
+		if d, err := h.deliverables.FindByID(sub.DeliverableID); err == nil {
+			entityName = d.Title
+		}
+		h.audit.Log(reviewerID, "submission.reject", "submission", id, entityName, "")
 	}
 	JSON(w, http.StatusOK, map[string]bool{"rejected": true})
 }

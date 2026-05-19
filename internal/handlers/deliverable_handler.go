@@ -14,10 +14,11 @@ import (
 )
 
 type DeliverableHandler struct {
-	repo    *repository.DeliverableRepo
-	tasks   *repository.TaskRepo
-	svc     *service.DeliverableService
+	repo     *repository.DeliverableRepo
+	tasks    *repository.TaskRepo
+	svc      *service.DeliverableService
 	projects *repository.ProjectRepo
+	audit    *repository.AuditRepo
 }
 
 func NewDeliverableHandler(
@@ -25,8 +26,9 @@ func NewDeliverableHandler(
 	tasks *repository.TaskRepo,
 	svc *service.DeliverableService,
 	projects *repository.ProjectRepo,
+	audit *repository.AuditRepo,
 ) *DeliverableHandler {
-	return &DeliverableHandler{repo: repo, tasks: tasks, svc: svc, projects: projects}
+	return &DeliverableHandler{repo: repo, tasks: tasks, svc: svc, projects: projects, audit: audit}
 }
 
 func normalizeAcceptanceCriteria(input interface{}) string {
@@ -109,6 +111,8 @@ func (h *DeliverableHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to create deliverable")
 		return
 	}
+	h.audit.Log(middleware.GetUserID(r), "deliverable.create", "deliverable", d.ID, d.Title,
+		fmt.Sprintf(`{"project_id":"%s","max_budget":%.2f}`, d.ProjectID, d.MaxBudget))
 	JSON(w, http.StatusCreated, d)
 }
 
@@ -195,6 +199,7 @@ func (h *DeliverableHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.svc.SyncBudget(d.ProjectID)
+	h.audit.Log(middleware.GetUserID(r), "deliverable.update", "deliverable", d.ID, d.Title, "")
 	JSON(w, http.StatusOK, d)
 }
 
@@ -210,6 +215,7 @@ func (h *DeliverableHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.svc.SyncBudget(d.ProjectID)
+	h.audit.Log(middleware.GetUserID(r), "deliverable.delete", "deliverable", id, d.Title, "")
 	JSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
 
@@ -220,33 +226,56 @@ func (h *DeliverableHandler) OpenForBids(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	d, _ := h.repo.FindByID(id)
+	title := id
+	if d != nil {
+		title = d.Title
+	}
+	h.audit.Log(middleware.GetUserID(r), "deliverable.open_bids", "deliverable", id, title, "")
 	JSON(w, http.StatusOK, d)
 }
 
 func (h *DeliverableHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	d, _ := h.repo.FindByID(id)
 	if err := h.svc.Cancel(id); err != nil {
 		Err(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	title := id
+	if d != nil {
+		title = d.Title
+	}
+	h.audit.Log(middleware.GetUserID(r), "deliverable.cancel", "deliverable", id, title, "")
 	JSON(w, http.StatusOK, map[string]bool{"cancelled": true})
 }
 
 func (h *DeliverableHandler) Reopen(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	d, _ := h.repo.FindByID(id)
 	if err := h.svc.Reopen(id); err != nil {
 		Err(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	title := id
+	if d != nil {
+		title = d.Title
+	}
+	h.audit.Log(middleware.GetUserID(r), "deliverable.reopen", "deliverable", id, title, "")
 	JSON(w, http.StatusOK, map[string]bool{"reopened": true})
 }
 
 func (h *DeliverableHandler) Reassign(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	d, _ := h.repo.FindByID(id)
 	if err := h.svc.Reassign(id); err != nil {
 		Err(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	title := id
+	if d != nil {
+		title = d.Title
+	}
+	h.audit.Log(middleware.GetUserID(r), "deliverable.reassign", "deliverable", id, title, "")
 	JSON(w, http.StatusOK, map[string]bool{"reassigned": true})
 }
 

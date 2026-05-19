@@ -65,5 +65,6 @@ func runMigrations(db *gorm.DB, driver string) error {
 		&models.TaskMember{},
 		&models.CommentMention{},
 		&models.Notification{},
+		&models.AuditLog{},
 	)
 }

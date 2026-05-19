@@ -100,6 +100,19 @@ export interface Subtask {
   position: number;
 }
 
+export interface AuditLog {
+  id: string;
+  user_id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  entity_name: string;
+  meta: string;
+  created_at: string;
+  user_name?: string;
+  user_role?: string;
+}
+
 export type ProposalStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 
 export interface Proposal {

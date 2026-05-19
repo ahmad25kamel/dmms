@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"dmms/internal/middleware"
@@ -16,10 +17,11 @@ type ProposalHandler struct {
 	deliverables *repository.DeliverableRepo
 	projects     *repository.ProjectRepo
 	delivSvc     *service.DeliverableService
+	audit        *repository.AuditRepo
 }
 
-func NewProposalHandler(proposals *repository.ProposalRepo, deliverables *repository.DeliverableRepo, projects *repository.ProjectRepo, delivSvc *service.DeliverableService) *ProposalHandler {
-	return &ProposalHandler{proposals: proposals, deliverables: deliverables, projects: projects, delivSvc: delivSvc}
+func NewProposalHandler(proposals *repository.ProposalRepo, deliverables *repository.DeliverableRepo, projects *repository.ProjectRepo, delivSvc *service.DeliverableService, audit *repository.AuditRepo) *ProposalHandler {
+	return &ProposalHandler{proposals: proposals, deliverables: deliverables, projects: projects, delivSvc: delivSvc, audit: audit}
 }
 
 func (h *ProposalHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +116,8 @@ func (h *ProposalHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusConflict, "already submitted a proposal for this deliverable")
 		return
 	}
+	h.audit.Log(contributorID, "proposal.submit", "proposal", p.ID,
+		d.Title, fmt.Sprintf(`{"deliverable_id":"%s","bid_amount":%.2f,"project":"%s"}`, deliverableID, body.BidAmount, proj.Name))
 	JSON(w, http.StatusCreated, p)
 }
 
@@ -144,6 +148,8 @@ func (h *ProposalHandler) Revise(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to update proposal")
 		return
 	}
+	h.audit.Log(middleware.GetUserID(r), "proposal.revise", "proposal", id,
+		proposal.DeliverableTitle, fmt.Sprintf(`{"bid_amount":%.2f}`, body.BidAmount))
 	JSON(w, http.StatusOK, map[string]bool{"updated": true})
 }
 
@@ -162,16 +168,25 @@ func (h *ProposalHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to withdraw")
 		return
 	}
+	h.audit.Log(middleware.GetUserID(r), "proposal.withdraw", "proposal", id, proposal.DeliverableTitle, "")
 	JSON(w, http.StatusOK, map[string]bool{"withdrawn": true})
 }
 
 func (h *ProposalHandler) Accept(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	pmID := middleware.GetUserID(r)
+	proposal, _ := h.proposals.FindByID(id)
 	if err := h.delivSvc.AcceptProposal(id, pmID); err != nil {
 		Err(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	entityName := id
+	meta := ""
+	if proposal != nil {
+		entityName = proposal.DeliverableTitle
+		meta = fmt.Sprintf(`{"bid_amount":%.2f,"contributor_id":"%s"}`, proposal.BidAmount, proposal.ContributorID)
+	}
+	h.audit.Log(pmID, "proposal.accept", "proposal", id, entityName, meta)
 	JSON(w, http.StatusOK, map[string]bool{"accepted": true})
 }
 
@@ -202,5 +217,7 @@ func (h *ProposalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to reject")
 		return
 	}
+	h.audit.Log(callerID, "proposal.reject", "proposal", id,
+		d.Title, fmt.Sprintf(`{"contributor_id":"%s","deliverable_id":"%s"}`, proposal.ContributorID, proposal.DeliverableID))
 	JSON(w, http.StatusOK, map[string]bool{"rejected": true})
 }

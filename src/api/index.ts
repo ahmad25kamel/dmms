@@ -1,7 +1,7 @@
 import { api } from './client';
 import type {
   User, Project, Deliverable, Task,
-  Proposal, Submission, RewardLedgerEntry, KanbanTask, KanbanComment,
+  Proposal, Submission, RewardLedgerEntry, KanbanTask, KanbanComment, AuditLog,
 } from '../types';
 
 // Auth
@@ -139,4 +139,18 @@ export const adminApi = {
   approveUser: (id: string) => api.post<{ approved: boolean }>(`/admin/users/${id}/approve`, {}),
   rejectUser: (id: string) => api.post<{ rejected: boolean }>(`/admin/users/${id}/reject`, {}),
   deleteUser: (id: string) => api.delete<{ deleted: boolean }>(`/admin/users/${id}`),
+};
+
+
+// Audit
+export const auditApi = {
+  list: (params?: { limit?: number; offset?: number; entity_type?: string; action?: string; user_id?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.offset) q.set('offset', String(params.offset));
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.action) q.set('action', params.action);
+    if (params?.user_id) q.set('user_id', params.user_id);
+    return api.get<{ items: AuditLog[]; total: number; limit: number; offset: number }>(`/admin/audit?${q}`);
+  },
 };
