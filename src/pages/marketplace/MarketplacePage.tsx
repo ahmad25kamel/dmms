@@ -104,6 +104,14 @@ export function MarketplacePage() {
   );
 }
 
+function sumDescendantsAcceptedBudget(nodes: Deliverable[]): number {
+  return nodes.reduce((sum, child) => {
+    const ownAccepted = child.accepted_budget ?? 0;
+    const childrenAccepted = child.children ? sumDescendantsAcceptedBudget(child.children) : 0;
+    return sum + (ownAccepted > 0 ? ownAccepted : childrenAccepted);
+  }, 0);
+}
+
 function buildTreesByProject(bids: Deliverable[]) {
   const projectsMap = new Map<string, Deliverable[]>();
 
@@ -171,9 +179,21 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail, onBidS
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, fontSize: 14 }}>{d.title}</span>
-            <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 12 }}>{formatCurrency(d.max_budget)}</span>
+            {hasChildren ? (() => {
+              const used = sumDescendantsAcceptedBudget(d.children!);
+              const remaining = d.max_budget - used;
+              return (
+                <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                  <span style={{ color: used > 0 ? 'var(--emerald)' : 'var(--fg-2)', fontWeight: 600 }}>{formatCurrency(remaining)}</span>
+                  {' remain of '}
+                  <span style={{ fontWeight: 600 }}>{formatCurrency(d.max_budget)}</span>
+                </span>
+              );
+            })() : (
+              <span style={{ color: 'var(--emerald)', fontWeight: 600, fontSize: 12 }}>{formatCurrency(d.max_budget)}</span>
+            )}
             {d.due_date && <span className="meta">Due {formatDate(d.due_date)}</span>}
             {(d.proposal_count ?? 0) > 0 && (
               <span style={{ fontSize: 11, background: 'var(--kamel-blue)', color: '#fff', borderRadius: 99, padding: '1px 7px', fontWeight: 600 }}>
