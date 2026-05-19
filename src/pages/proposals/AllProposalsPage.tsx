@@ -16,6 +16,7 @@ const STATUS_FILTERS: { label: string; value: ProposalStatus | 'all' }[] = [
 interface DeliverableGroup {
   deliverableId: string;
   deliverableTitle: string;
+  deliverableMaxBudget: number;
   projectName: string;
   parentDeliverableTitle?: string;
   grandparentDeliverableTitle?: string;
@@ -77,6 +78,7 @@ export function AllProposalsPage() {
         map.set(p.deliverable_id, {
           deliverableId: p.deliverable_id,
           deliverableTitle: p.deliverable_title ?? p.deliverable_id,
+          deliverableMaxBudget: p.deliverable_max_budget ?? 0,
           projectName: p.project_name ?? '—',
           parentDeliverableTitle: p.parent_deliverable_title || undefined,
           grandparentDeliverableTitle: p.grandparent_deliverable_title || undefined,
@@ -203,6 +205,15 @@ export function AllProposalsPage() {
                       {group.proposals.length} bid{group.proposals.length !== 1 ? 's' : ''}
                       {hasPending && ` · ${group.proposals.filter(p => p.status === 'pending').length} pending`}
                       {hasAccepted && ' · Assigned'}
+                      {group.deliverableMaxBudget > 0 && (() => {
+                        const acceptedBid = group.proposals.find(p => p.status === 'accepted')?.bid_amount ?? 0;
+                        const remaining = group.deliverableMaxBudget - acceptedBid;
+                        return (
+                          <span style={{ marginLeft: 6, color: hasAccepted ? 'var(--emerald)' : 'var(--fg-3)' }}>
+                            · {formatCurrency(remaining)} remain of {formatCurrency(group.deliverableMaxBudget)}
+                          </span>
+                        );
+                      })()}
                     </p>
                   </div>
                   <Link to={`/proposals/review/${group.deliverableId}`} style={{ textDecoration: 'none' }}>

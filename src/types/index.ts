@@ -113,6 +113,7 @@ export interface Proposal {
   created_at: string;
   contributor_name?: string;
   deliverable_title?: string;
+  deliverable_max_budget?: number;
   parent_deliverable_id?: string;
   parent_deliverable_title?: string;
   grandparent_deliverable_title?: string;

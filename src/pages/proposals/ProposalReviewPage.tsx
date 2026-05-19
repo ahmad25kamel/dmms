@@ -57,9 +57,20 @@ export function ProposalReviewPage() {
       <div className="dmms-page-head">
         <div>
           <h1>Proposals</h1>
-          {deliverable && (
-            <p className="dmms-page-sub">{deliverable.title} · Max {formatCurrency(deliverable.max_budget)}</p>
-          )}
+          {deliverable && (() => {
+            const acceptedProposal = proposals.find(p => p.status === 'accepted');
+            const acceptedAmount = acceptedProposal?.bid_amount ?? 0;
+            const remaining = deliverable.max_budget - acceptedAmount;
+            return (
+              <p className="dmms-page-sub">
+                {deliverable.title} · Max {formatCurrency(deliverable.max_budget)}
+                {' · '}
+                <span style={{ color: acceptedAmount > 0 ? 'var(--emerald)' : 'var(--fg-3)', fontWeight: 600 }}>
+                  {formatCurrency(remaining)} remaining
+                </span>
+              </p>
+            );
+          })()}
         </div>
       </div>
 

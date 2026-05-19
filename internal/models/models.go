@@ -240,6 +240,7 @@ type Proposal struct {
 	CreatedAt        time.Time      `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 	ContributorName              string         `json:"contributor_name,omitempty" gorm:"->"`
 	DeliverableTitle             string         `json:"deliverable_title,omitempty" gorm:"->"`
+	DeliverableMaxBudget         float64        `json:"deliverable_max_budget,omitempty" gorm:"->"`
 	ParentDeliverableID          string         `json:"parent_deliverable_id,omitempty" gorm:"->"`
 	ParentDeliverableTitle       string         `json:"parent_deliverable_title,omitempty" gorm:"->"`
 	GrandparentDeliverableTitle  string         `json:"grandparent_deliverable_title,omitempty" gorm:"->"`
