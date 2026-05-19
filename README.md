@@ -1,11 +1,22 @@
-# DMMS — Deliverable Modular Management System
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/logo-white.svg">
+    <img src="public/logo-dark.svg" alt="DMMS — Deliverable Modular Management System" width="480">
+  </picture>
+</p>
 
-> A structured project delivery platform where PMs break work into a recursive deliverable tree, contributors bid on items, and approvals trigger automatic reward ledger entries.
+<p align="center">
+  <strong>Structure. Bid. Deliver.</strong><br/>
+  A structured project delivery platform where PMs break work into a recursive deliverable tree,<br/>
+  contributors bid on items, and approvals trigger automatic reward ledger entries.
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
-[![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql)](https://www.mysql.com/)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
+  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go" alt="Go"/>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React"/>
+  <img src="https://img.shields.io/badge/SQLite%2FMySQL-supported-4479A1" alt="Database"/>
+</p>
 
 ---
 
@@ -32,8 +43,24 @@ It provides a marketplace layer on top of a deliverable tree — PMs publish wor
 - **Kanban board** — cross-project task board with per-list infinite scroll, due dates, and member assignment
 - **Automatic reward ledger** — every approved submission credits the contributor and updates PM budget savings
 - **File attachments** — upload files or link PR URLs on tasks and comments
+- **Audit trail** — every action logged with actor, entity, and metadata for full accountability
 - **MCP server** — 30 AI tools for Claude Code to read and write data directly (create projects, review proposals, manage kanban, etc.)
 - **Single binary deployment** — the React frontend is embedded in the Go binary; one process serves everything
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="public/screenshots/dashboard.png" alt="Dashboard" width="420"/><br/><sub><b>Dashboard</b></sub></td>
+    <td><img src="public/screenshots/projects.png" alt="Projects" width="420"/><br/><sub><b>Projects</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="public/screenshots/kanban.png" alt="Kanban Board" width="420"/><br/><sub><b>Kanban Board</b></sub></td>
+    <td><img src="public/screenshots/marketplace.png" alt="Marketplace" width="420"/><br/><sub><b>Marketplace</b></sub></td>
+  </tr>
+</table>
 
 ---
 
