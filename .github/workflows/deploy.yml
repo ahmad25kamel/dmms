@@ -9,6 +9,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: HotamaDev
+    permissions:
+      contents: read
     steps:
       - name: Validate secrets
         env:
