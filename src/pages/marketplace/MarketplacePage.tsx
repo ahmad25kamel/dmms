@@ -104,11 +104,12 @@ export function MarketplacePage() {
   );
 }
 
-function sumDescendantsAcceptedBudget(nodes: Deliverable[]): number {
+function sumOpenBudget(nodes: Deliverable[]): number {
   return nodes.reduce((sum, child) => {
-    const ownAccepted = child.accepted_budget ?? 0;
-    const childrenAccepted = child.children ? sumDescendantsAcceptedBudget(child.children) : 0;
-    return sum + (ownAccepted > 0 ? ownAccepted : childrenAccepted);
+    if (child.children && child.children.length > 0) {
+      return sum + sumOpenBudget(child.children);
+    }
+    return sum + child.max_budget;
   }, 0);
 }
 
@@ -182,11 +183,10 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail, onBidS
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, fontSize: 14 }}>{d.title}</span>
             {hasChildren ? (() => {
-              const used = sumDescendantsAcceptedBudget(d.children!);
-              const remaining = d.max_budget - used;
+              const remaining = sumOpenBudget(d.children!);
               return (
                 <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
-                  <span style={{ color: used > 0 ? 'var(--emerald)' : 'var(--fg-2)', fontWeight: 600 }}>{formatCurrency(remaining)}</span>
+                  <span style={{ color: remaining < d.max_budget ? 'var(--emerald)' : 'var(--fg-2)', fontWeight: 600 }}>{formatCurrency(remaining)}</span>
                   {' remain of '}
                   <span style={{ fontWeight: 600 }}>{formatCurrency(d.max_budget)}</span>
                 </span>
