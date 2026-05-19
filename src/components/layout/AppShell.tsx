@@ -94,6 +94,7 @@ const navItems: NavItem[] = [
   { to: '/ledger',         label: 'Rewards',        icon: <Icon.Ledger />,     roles: ['pm','contributor','admin'] },
   { to: '/budget',         label: 'Budget',         icon: <Icon.Budget />,     roles: ['pm','admin'] },
   { to: '/admin',          label: 'Users',          icon: <Icon.Users />,      roles: ['admin'] },
+  { to: '/audit',          label: 'Audit Trail',    icon: <Icon.Ledger />,     roles: ['admin'] },
 ];
 
 // Bottom nav shows top 4 most relevant items for the role + "More" overflow

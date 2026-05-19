@@ -14,10 +14,11 @@ import (
 
 type ProjectHandler struct {
 	projects *repository.ProjectRepo
+	audit    *repository.AuditRepo
 }
 
-func NewProjectHandler(projects *repository.ProjectRepo) *ProjectHandler {
-	return &ProjectHandler{projects: projects}
+func NewProjectHandler(projects *repository.ProjectRepo, audit *repository.AuditRepo) *ProjectHandler {
+	return &ProjectHandler{projects: projects, audit: audit}
 }
 
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +74,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to create project")
 		return
 	}
+	h.audit.Log(middleware.GetUserID(r), "project.create", "project", p.ID, p.Name, "")
 	JSON(w, http.StatusCreated, p)
 }
 
@@ -122,6 +124,7 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to update project")
 		return
 	}
+	h.audit.Log(middleware.GetUserID(r), "project.update", "project", id, p.Name, "")
 	JSON(w, http.StatusOK, p)
 }
 
@@ -141,5 +144,6 @@ func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusInternalServerError, "failed to delete project")
 		return
 	}
+	h.audit.Log(middleware.GetUserID(r), "project.delete", "project", id, p.Name, "")
 	JSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }

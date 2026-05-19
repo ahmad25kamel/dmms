@@ -263,3 +263,18 @@ type RewardLedgerEntry struct {
 }
 
 func (RewardLedgerEntry) TableName() string { return "dmms_reward_ledger" }
+
+type AuditLog struct {
+	ID         string    `json:"id" gorm:"primaryKey;size:191"`
+	UserID     string    `json:"user_id" gorm:"column:user_id;not null;size:191"`
+	Action     string    `json:"action" gorm:"not null;size:100"`
+	EntityType string    `json:"entity_type" gorm:"column:entity_type;not null;size:100"`
+	EntityID   string    `json:"entity_id" gorm:"column:entity_id;size:191"`
+	EntityName string    `json:"entity_name" gorm:"column:entity_name;size:500"`
+	Meta       string    `json:"meta" gorm:"type:text"`
+	CreatedAt  time.Time `json:"created_at"`
+	UserName   string    `json:"user_name,omitempty" gorm:"->"`
+	UserRole   string    `json:"user_role,omitempty" gorm:"->"`
+}
+
+func (AuditLog) TableName() string { return "dmms_audit_logs" }
