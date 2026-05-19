@@ -17,6 +17,8 @@ interface DeliverableGroup {
   deliverableId: string;
   deliverableTitle: string;
   projectName: string;
+  parentDeliverableTitle?: string;
+  grandparentDeliverableTitle?: string;
   proposals: Proposal[];
 }
 
@@ -76,6 +78,8 @@ export function AllProposalsPage() {
           deliverableId: p.deliverable_id,
           deliverableTitle: p.deliverable_title ?? p.deliverable_id,
           projectName: p.project_name ?? '—',
+          parentDeliverableTitle: p.parent_deliverable_title || undefined,
+          grandparentDeliverableTitle: p.grandparent_deliverable_title || undefined,
           proposals: [],
         });
       }
@@ -180,6 +184,18 @@ export function AllProposalsPage() {
                       <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-4)' }}>
                         {group.projectName}
                       </span>
+                      {group.grandparentDeliverableTitle && (
+                        <>
+                          <span style={{ color: 'var(--fg-4)', fontSize: 11 }}>›</span>
+                          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{group.grandparentDeliverableTitle}</span>
+                        </>
+                      )}
+                      {group.parentDeliverableTitle && (
+                        <>
+                          <span style={{ color: 'var(--fg-4)', fontSize: 11 }}>›</span>
+                          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{group.parentDeliverableTitle}</span>
+                        </>
+                      )}
                       <span style={{ color: 'var(--fg-4)', fontSize: 11 }}>›</span>
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-0)' }}>{group.deliverableTitle}</span>
                     </div>
