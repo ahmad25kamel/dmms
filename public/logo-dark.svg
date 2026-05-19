@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 220" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <!-- ── Connector lines ── -->
+  <line x1="115" y1="110" x2="115" y2="55"  stroke="#2563EB" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="115" y1="110" x2="163" y2="83"  stroke="#2563EB" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="115" y1="110" x2="67"  y2="83"  stroke="#2563EB" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="115" y1="110" x2="163" y2="137" stroke="#2563EB" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="115" y1="110" x2="67"  y2="137" stroke="#2563EB" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="115" y1="110" x2="115" y2="165" stroke="#2563EB" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="115" y1="55"  x2="115" y2="20"  stroke="#2563EB" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="163" y1="83"  x2="193" y2="66"  stroke="#2563EB" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="163" y1="137" x2="193" y2="154" stroke="#2563EB" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="67"  y1="137" x2="37"  y2="154" stroke="#2563EB" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- ── Level 2 cubes (r=10) ── -->
+  <polygon points="115,10 123.7,15 115,20 106.3,15"     fill="#2B4FAA"/>
+  <polygon points="123.7,15 123.7,25 115,30 115,20"     fill="#1B3478"/>
+  <polygon points="115,20 115,30 106.3,25 106.3,15"     fill="#1F3D8F"/>
+  <polygon points="193,56 201.7,61 193,66 184.3,61"     fill="#2B4FAA"/>
+  <polygon points="201.7,61 201.7,71 193,76 193,66"     fill="#1B3478"/>
+  <polygon points="193,66 193,76 184.3,71 184.3,61"     fill="#1F3D8F"/>
+  <polygon points="193,144 201.7,149 193,154 184.3,149" fill="#2B4FAA"/>
+  <polygon points="201.7,149 201.7,159 193,164 193,154" fill="#1B3478"/>
+  <polygon points="193,154 193,164 184.3,159 184.3,149" fill="#1F3D8F"/>
+  <polygon points="37,144 45.7,149 37,154 28.3,149"     fill="#2B4FAA"/>
+  <polygon points="45.7,149 45.7,159 37,164 37,154"     fill="#1B3478"/>
+  <polygon points="37,154 37,164 28.3,159 28.3,149"     fill="#1F3D8F"/>
+
+  <!-- ── Level 1 cubes (r=15) ── -->
+  <polygon points="115,40 128,47.5 115,55 102,47.5"       fill="#2F57B8"/>
+  <polygon points="128,47.5 128,62.5 115,70 115,55"       fill="#1B3478"/>
+  <polygon points="115,55 115,70 102,62.5 102,47.5"       fill="#22428E"/>
+  <polygon points="163,68 176,75.5 163,83 150,75.5"       fill="#2F57B8"/>
+  <polygon points="176,75.5 176,90.5 163,98 163,83"       fill="#1B3478"/>
+  <polygon points="163,83 163,98 150,90.5 150,75.5"       fill="#22428E"/>
+  <polygon points="67,68 80,75.5 67,83 54,75.5"           fill="#2F57B8"/>
+  <polygon points="80,75.5 80,90.5 67,98 67,83"           fill="#1B3478"/>
+  <polygon points="67,83 67,98 54,90.5 54,75.5"           fill="#22428E"/>
+  <polygon points="163,122 176,129.5 163,137 150,129.5"   fill="#2F57B8"/>
+  <polygon points="176,129.5 176,144.5 163,152 163,137"   fill="#1B3478"/>
+  <polygon points="163,137 163,152 150,144.5 150,129.5"   fill="#22428E"/>
+  <polygon points="67,122 80,129.5 67,137 54,129.5"       fill="#2F57B8"/>
+  <polygon points="80,129.5 80,144.5 67,152 67,137"       fill="#1B3478"/>
+  <polygon points="67,137 67,152 54,144.5 54,129.5"       fill="#22428E"/>
+  <polygon points="115,150 128,157.5 115,165 102,157.5"   fill="#2F57B8"/>
+  <polygon points="128,157.5 128,172.5 115,180 115,165"   fill="#1B3478"/>
+  <polygon points="115,165 115,180 102,172.5 102,157.5"   fill="#22428E"/>
+
+  <!-- ── Main cube (r=26) ── -->
+  <polygon points="115,84 137.5,97 115,110 92.5,97"     fill="#2563EB"/>
+  <polygon points="137.5,97 137.5,123 115,136 115,110"  fill="#1D4ED8"/>
+  <polygon points="115,110 115,136 92.5,123 92.5,97"    fill="#1E40AF"/>
+
+  <!-- ── Wordmark text ── -->
+  <text x="252" y="162"
+    font-size="128" font-weight="800"
+    fill="#0F172A" letter-spacing="-3">DMMS</text>
+  <text x="256" y="192"
+    font-size="17.5" font-weight="400"
+    fill="#6B7280" letter-spacing="2">DELIVERABLE MODULAR MANAGEMENT SYSTEM</text>
+</svg>

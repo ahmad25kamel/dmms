@@ -1,5 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="112" fill="#2563EB"/>
-  <rect x="144" y="144" width="224" height="224" rx="24" fill="none" stroke="white" stroke-width="28"/>
-  <path d="M196 256 L236 296 L316 216" fill="none" stroke="white" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="#1E3A8A"/>
+
+  <!-- Scale: center 256,256, cube unit r≈80 -->
+  <!-- Connector lines -->
+  <line x1="256" y1="256" x2="256" y2="120" stroke="#38D6FF" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="374" y2="188" stroke="#38D6FF" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="138" y2="188" stroke="#38D6FF" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="374" y2="324" stroke="#38D6FF" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="138" y2="324" stroke="#38D6FF" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="256" y2="392" stroke="#38D6FF" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Level-1 cubes (r=44) at distance ~136 from center -->
+  <!-- Top (256, 120) -->
+  <polygon points="256,76 294,98 256,120 218,98"   fill="rgba(255,255,255,0.82)"/>
+  <polygon points="294,98 294,142 256,164 256,120"  fill="rgba(255,255,255,0.38)"/>
+  <polygon points="256,120 256,164 218,142 218,98"  fill="rgba(255,255,255,0.58)"/>
+  <!-- Upper-right (374, 188) -->
+  <polygon points="374,144 412,166 374,188 336,166" fill="rgba(255,255,255,0.82)"/>
+  <polygon points="412,166 412,210 374,232 374,188" fill="rgba(255,255,255,0.38)"/>
+  <polygon points="374,188 374,232 336,210 336,166" fill="rgba(255,255,255,0.58)"/>
+  <!-- Upper-left (138, 188) -->
+  <polygon points="138,144 176,166 138,188 100,166" fill="rgba(255,255,255,0.82)"/>
+  <polygon points="176,166 176,210 138,232 138,188" fill="rgba(255,255,255,0.38)"/>
+  <polygon points="138,188 138,232 100,210 100,166" fill="rgba(255,255,255,0.58)"/>
+  <!-- Lower-right (374, 324) -->
+  <polygon points="374,280 412,302 374,324 336,302" fill="rgba(255,255,255,0.82)"/>
+  <polygon points="412,302 412,346 374,368 374,324" fill="rgba(255,255,255,0.38)"/>
+  <polygon points="374,324 374,368 336,346 336,302" fill="rgba(255,255,255,0.58)"/>
+  <!-- Lower-left (138, 324) -->
+  <polygon points="138,280 176,302 138,324 100,302" fill="rgba(255,255,255,0.82)"/>
+  <polygon points="176,302 176,346 138,368 138,324" fill="rgba(255,255,255,0.38)"/>
+  <polygon points="138,324 138,368 100,346 100,302" fill="rgba(255,255,255,0.58)"/>
+  <!-- Bottom (256, 392) -->
+  <polygon points="256,348 294,370 256,392 218,370" fill="rgba(255,255,255,0.82)"/>
+  <polygon points="294,370 294,414 256,436 256,392" fill="rgba(255,255,255,0.38)"/>
+  <polygon points="256,392 256,436 218,414 218,370" fill="rgba(255,255,255,0.58)"/>
+
+  <!-- Main cube (256, 256) r=66 -->
+  <polygon points="256,190 313,223 256,256 199,223" fill="rgba(255,255,255,0.95)"/>
+  <polygon points="313,223 313,289 256,322 256,256" fill="rgba(255,255,255,0.50)"/>
+  <polygon points="256,256 256,322 199,289 199,223" fill="rgba(255,255,255,0.72)"/>
 </svg>

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthContext, useAuthState, useAuth } from './store/authStore';
 import { AppShell } from './components/layout/AppShell';
+import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
@@ -36,6 +37,13 @@ function PublicOnly({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function PublicLanding() {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner />;
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <LandingPage />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -59,8 +67,8 @@ function AppRoutes() {
         <Route path="/kanban" element={<KanbanPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/audit" element={<AuditPage />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Route>
+      <Route path="/" element={<PublicLanding />} />
     </Routes>
   );
 }
