@@ -10,6 +10,8 @@ jobs:
   go:
     name: Go build & vet
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +29,8 @@ jobs:
   typescript:
     name: TypeScript type-check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
