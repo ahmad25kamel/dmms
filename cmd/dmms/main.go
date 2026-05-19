@@ -183,12 +183,12 @@ func main() {
 		resolvedPath := filepath.Join(absDist, relPath)
 
 		relToDist, err := filepath.Rel(absDist, resolvedPath)
-		if err != nil || strings.HasPrefix(relToDist, "..") || relToDist == "." && r.URL.Path == "/" {
+		if err != nil || strings.HasPrefix(relToDist, "..") || relToDist == "." || r.URL.Path == "/" {
 			http.ServeFile(w, r, "dist/index.html")
 			return
 		}
 
-		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) || r.URL.Path == "/" {
+		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 			http.ServeFile(w, r, "dist/index.html")
 			return
 		}
