@@ -112,21 +112,32 @@ jobs:
             echo "==> Building Go binary"
             go build -o "dmms-server-pr-${PR}" ./cmd/dmms
 
-            echo "==> Cloning database ${MAIN_DB} → ${DB_NAME}"
+            echo "==> Setting up database ${DB_NAME}"
             mysql -h "${DB_HOST}" -P "${DB_PORT}" \
                   -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
                   -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-            mysqldump -h "${DB_HOST}" -P "${DB_PORT}" \
-                      -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
-                      --single-transaction --no-tablespaces \
-                      "${MAIN_DB}" \
-              | mysql -h "${DB_HOST}" -P "${DB_PORT}" \
-                      -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
-                      "${DB_NAME}"
-            echo "Database cloned"
+            # Only clone from main DB on first deploy (when DB has no tables yet)
+            TABLE_COUNT=$(mysql -h "${DB_HOST}" -P "${DB_PORT}" \
+                               -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+                               --batch --skip-column-names \
+                               -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}';" 2>/dev/null || echo "0")
+            if [[ "${TABLE_COUNT}" == "0" ]]; then
+              echo "==> First deploy — cloning ${MAIN_DB} → ${DB_NAME}"
+              mysqldump -h "${DB_HOST}" -P "${DB_PORT}" \
+                        -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+                        --single-transaction --no-tablespaces \
+                        "${MAIN_DB}" \
+                | mysql -h "${DB_HOST}" -P "${DB_PORT}" \
+                        -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+                        "${DB_NAME}"
+              echo "Database cloned"
+            else
+              echo "Database already initialised (${TABLE_COUNT} tables) — skipping clone"
+            fi
 
-            echo "==> Writing systemd service"
-            sudo tee /etc/systemd/system/${SERVICE}.service > /dev/null << EOF
+            echo "==> Writing systemd user service"
+            mkdir -p ~/.config/systemd/user
+            cat > ~/.config/systemd/user/${SERVICE}.service << EOF
           [Unit]
           Description=DMMS PR ${PR} Preview
           After=network.target
@@ -146,16 +157,16 @@ jobs:
           RestartSec=5
 
           [Install]
-          WantedBy=multi-user.target
+          WantedBy=default.target
           EOF
 
             echo "==> Starting service"
-            sudo systemctl daemon-reload
-            sudo systemctl enable "${SERVICE}"
-            if sudo systemctl is-active --quiet "${SERVICE}"; then
-              sudo systemctl restart "${SERVICE}"
+            systemctl --user daemon-reload
+            systemctl --user enable "${SERVICE}"
+            if systemctl --user is-active --quiet "${SERVICE}"; then
+              systemctl --user restart "${SERVICE}"
             else
-              sudo systemctl start "${SERVICE}"
+              systemctl --user start "${SERVICE}"
             fi
 
             echo "==> Writing Apache VirtualHost"
