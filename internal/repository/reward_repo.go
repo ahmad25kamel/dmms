@@ -72,7 +72,8 @@ func (r *RewardRepo) BudgetBreakdownByPM(pmID string) ([]*ContributorBudgetRow, 
 		Amount float64
 	}
 
-	// 1. Pending proposals (projected)
+	// 1. Pending proposals still in play — exclude proposals on deliverables
+	// that are already assigned/closed (an accepted proposal exists for that deliverable).
 	var projected []row
 	if err := r.db.Raw(`
 		SELECT p.contributor_id AS user_id, u.name, COALESCE(SUM(p.bid_amount), 0) AS amount
@@ -80,22 +81,32 @@ func (r *RewardRepo) BudgetBreakdownByPM(pmID string) ([]*ContributorBudgetRow, 
 		JOIN dmms_deliverables d ON d.id = p.deliverable_id AND d.deleted_at IS NULL
 		JOIN dmms_projects pr ON pr.id = d.project_id AND pr.deleted_at IS NULL
 		JOIN dmms_users u ON u.id = p.contributor_id
-		WHERE pr.pm_id = ? AND p.status = 'pending'
+		WHERE pr.pm_id = ?
+		  AND p.status = 'pending'
+		  AND d.status = 'open_for_bids'
 		GROUP BY p.contributor_id, u.name
 	`, pmID).Scan(&projected).Error; err != nil {
 		return nil, err
 	}
 
-	// 2. Accepted budget on active deliverables (approved/committed)
+	// 2. Accepted budget on active deliverables (committed, not yet disbursed).
+	// Only include deliverables that do NOT already have a reward ledger entry
+	// (i.e. not yet approved/paid out) to avoid double-counting with disbursed.
 	var approved []row
 	if err := r.db.Raw(`
 		SELECT d.owner_id AS user_id, u.name, COALESCE(SUM(d.accepted_budget), 0) AS amount
 		FROM dmms_deliverables d
 		JOIN dmms_projects pr ON pr.id = d.project_id AND pr.deleted_at IS NULL
 		JOIN dmms_users u ON u.id = d.owner_id
-		WHERE pr.pm_id = ? AND d.owner_id IS NOT NULL AND d.accepted_budget IS NOT NULL
+		WHERE pr.pm_id = ?
+		  AND d.owner_id IS NOT NULL
+		  AND d.accepted_budget IS NOT NULL
 		  AND d.status IN ('assigned','in_progress','submitted','revision_requested')
 		  AND d.deleted_at IS NULL
+		  AND NOT EXISTS (
+		    SELECT 1 FROM dmms_reward_ledger rl
+		    WHERE rl.deliverable_id = d.id AND rl.user_id = d.owner_id
+		  )
 		GROUP BY d.owner_id, u.name
 	`, pmID).Scan(&approved).Error; err != nil {
 		return nil, err

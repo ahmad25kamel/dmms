@@ -166,15 +166,19 @@ export function BudgetPage() {
             <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
               {/* Table header */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px 140px 140px', gap: 0, borderBottom: '1px solid var(--border-1)', padding: '10px 20px', background: 'var(--bg-2)' }}>
-                {['Contributor', 'Projected', 'Approved', 'Disbursed', 'Total'].map((h, i) => (
-                  <p key={h} style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-3)', textAlign: i > 0 ? 'right' : 'left' }}>{h}</p>
+                {['Contributor', 'Projected', 'Approved', 'Disbursed', 'Committed'].map((h, i) => (
+                  <p key={h} style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-3)', textAlign: i > 0 ? 'right' : 'left' }}
+                    title={h === 'Committed' ? 'Approved (active) + Disbursed (paid) — actual money at risk or already paid' : undefined}
+                  >{h}</p>
                 ))}
               </div>
 
               {contributors.map((c, idx) => {
-                const total = c.projected + c.approved + c.disbursed;
-                const maxTotal = contributors.reduce((m, x) => Math.max(m, x.projected + x.approved + x.disbursed), 1);
-                const barPct = (total / maxTotal) * 100;
+                // Committed = approved (active, not yet paid) + disbursed (already paid).
+                // Projected (pending bids) is informational — not yet committed money.
+                const committed = c.approved + c.disbursed;
+                const maxCommitted = contributors.reduce((m, x) => Math.max(m, x.approved + x.disbursed), 1);
+                const barPct = maxCommitted > 0 ? (committed / maxCommitted) * 100 : 0;
 
                 return (
                   <div key={c.user_id} style={{ borderBottom: idx < contributors.length - 1 ? '1px solid var(--border-1)' : 'none' }}>
@@ -196,26 +200,22 @@ export function BudgetPage() {
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: c.disbursed > 0 ? 'var(--emerald)' : 'var(--fg-4)', textAlign: 'right' }}>
                         {c.disbursed > 0 ? formatCurrency(c.disbursed) : '—'}
                       </p>
-                      {/* Total */}
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--fg-0)', textAlign: 'right' }}>
-                        {formatCurrency(total)}
+                      {/* Committed = approved + disbursed */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: committed > 0 ? 'var(--fg-0)' : 'var(--fg-4)', textAlign: 'right' }}>
+                        {committed > 0 ? formatCurrency(committed) : '—'}
                       </p>
                     </div>
 
-                    {/* Stacked progress bar */}
+                    {/* Stacked progress bar — based on committed only */}
                     <div style={{ padding: '0 20px 10px', display: 'flex', gap: 2 }}>
                       <div style={{ flex: 1, height: 4, background: 'var(--bg-3)', borderRadius: 99, overflow: 'hidden', display: 'flex' }}>
                         {/* disbursed segment */}
                         {c.disbursed > 0 && (
-                          <div style={{ width: `${(c.disbursed / maxTotal) * 100}%`, background: 'var(--emerald)', height: '100%', transition: 'width 0.4s' }} title={`Cair: ${formatCurrency(c.disbursed)}`} />
+                          <div style={{ width: `${(c.disbursed / maxCommitted) * 100}%`, background: 'var(--emerald)', height: '100%', transition: 'width 0.4s' }} title={`Cair: ${formatCurrency(c.disbursed)}`} />
                         )}
                         {/* approved segment */}
                         {c.approved > 0 && (
-                          <div style={{ width: `${(c.approved / maxTotal) * 100}%`, background: 'var(--kamel-blue)', height: '100%', transition: 'width 0.4s' }} title={`Approved: ${formatCurrency(c.approved)}`} />
-                        )}
-                        {/* projected segment */}
-                        {c.projected > 0 && (
-                          <div style={{ width: `${(c.projected / maxTotal) * 100}%`, background: 'var(--amber)', height: '100%', opacity: 0.6, transition: 'width 0.4s' }} title={`Projected: ${formatCurrency(c.projected)}`} />
+                          <div style={{ width: `${(c.approved / maxCommitted) * 100}%`, background: 'var(--kamel-blue)', height: '100%', transition: 'width 0.4s' }} title={`Approved: ${formatCurrency(c.approved)}`} />
                         )}
                       </div>
                       <p style={{ margin: 0, fontSize: 10, color: 'var(--fg-4)', whiteSpace: 'nowrap', alignSelf: 'center' }}>
@@ -232,7 +232,7 @@ export function BudgetPage() {
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--amber)', textAlign: 'right' }}>{formatCurrency(totalProjected)}</p>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--kamel-blue)', textAlign: 'right' }}>{formatCurrency(totalApproved)}</p>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--emerald)', textAlign: 'right' }}>{formatCurrency(totalDisbursed)}</p>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--fg-0)', textAlign: 'right' }}>{formatCurrency(totalProjected + totalApproved + totalDisbursed)}</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--fg-0)', textAlign: 'right' }}>{formatCurrency(totalApproved + totalDisbursed)}</p>
               </div>
             </div>
           )}
