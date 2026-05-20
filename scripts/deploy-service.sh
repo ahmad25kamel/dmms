@@ -77,7 +77,16 @@ EOF
 echo "🔒 Enabling linger for $CURRENT_USER (service persists after logout)..."
 loginctl enable-linger "$CURRENT_USER"
 
-# 7. Reload and start
+# 7. Kill any process already using the port (stale servers, other instances)
+echo "🔍 Checking for processes on port $PORT..."
+PORT_PIDS=$(lsof -ti tcp:"$PORT" 2>/dev/null || fuser "$PORT"/tcp 2>/dev/null | tr ' ' '\n' | grep -v '^$')
+if [ -n "$PORT_PIDS" ]; then
+    echo "⚠️  Killing existing processes on port $PORT: $PORT_PIDS"
+    echo "$PORT_PIDS" | xargs -r kill -9 2>/dev/null || true
+    sleep 1
+fi
+
+# 8. Reload and start
 echo "🔄 Reloading user systemd and starting service..."
 systemctl --user daemon-reload
 systemctl --user enable "$APP_NAME"
