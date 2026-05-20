@@ -122,6 +122,7 @@ export interface Proposal {
   bid_amount: number;
   eta_date: string | null;
   message: string;
+  rejection_message?: string;
   status: ProposalStatus;
   created_at: string;
   contributor_name?: string;

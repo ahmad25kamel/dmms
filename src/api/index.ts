@@ -70,7 +70,7 @@ export const proposalsApi = {
   revise: (id: string, body: Partial<Proposal>) => api.patch<{ updated: boolean }>(`/proposals/${id}`, body),
   withdraw: (id: string) => api.post<{ withdrawn: boolean }>(`/proposals/${id}/withdraw`),
   accept: (id: string) => api.post<{ accepted: boolean }>(`/proposals/${id}/accept`),
-  reject: (id: string) => api.post<{ rejected: boolean }>(`/proposals/${id}/reject`),
+  reject: (id: string, message?: string) => api.post<{ rejected: boolean }>(`/proposals/${id}/reject`, { message: message ?? '' }),
 };
 
 // Submissions (review)

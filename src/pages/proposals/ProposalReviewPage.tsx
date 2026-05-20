@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { proposalsApi, deliverablesApi } from '../../api';
 import type { Proposal, Deliverable } from '../../types';
-import { Badge, Button, Spinner, EmptyState, Modal } from '../../components/ui';
+import { Badge, Button, Spinner, EmptyState, Modal, Textarea } from '../../components/ui';
 import { formatCurrency, formatDate, proposalStatusColor } from '../../lib/statusColors';
 
 export function ProposalReviewPage() {
@@ -12,6 +12,8 @@ export function ProposalReviewPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [pendingAcceptId, setPendingAcceptId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Proposal | null>(null);
+  const [rejectMessage, setRejectMessage] = useState('');
 
   const childCount = deliverable?.children?.length ?? 0;
 
@@ -42,11 +44,18 @@ export function ProposalReviewPage() {
     } finally { setActing(false); }
   }
 
-  async function reject(id: string) {
+  function openReject(proposal: Proposal) {
+    setRejectTarget(proposal);
+    setRejectMessage('');
+  }
+
+  async function doReject() {
+    if (!rejectTarget) return;
     setActing(true);
     try {
-      await proposalsApi.reject(id);
-      setProposals(ps => ps.map(p => p.id === id ? { ...p, status: 'rejected' } : p));
+      await proposalsApi.reject(rejectTarget.id, rejectMessage);
+      setProposals(ps => ps.map(p => p.id === rejectTarget.id ? { ...p, status: 'rejected', rejection_message: rejectMessage } : p));
+      setRejectTarget(null);
     } finally { setActing(false); }
   }
 
@@ -90,18 +99,24 @@ export function ProposalReviewPage() {
                   {p.eta_date && <span className="meta">ETA {formatDate(p.eta_date)}</span>}
                 </div>
                 {p.message && <p className="body-sm">{p.message}</p>}
+                {p.status === 'rejected' && p.rejection_message && (
+                  <p style={{ fontSize: 12, color: 'var(--rose)', marginTop: 4, padding: '6px 10px', background: 'color-mix(in srgb, var(--rose) 8%, transparent)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--rose)' }}>
+                    Rejection reason: {p.rejection_message}
+                  </p>
+                )}
                 <p className="meta" style={{ marginTop: 2 }}>{formatDate(p.created_at)}</p>
               </div>
               {p.status === 'pending' && (
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   <Button size="sm" onClick={() => tryAccept(p.id)} disabled={acting}>Accept</Button>
-                  <Button size="sm" variant="secondary" onClick={() => reject(p.id)} disabled={acting}>Reject</Button>
+                  <Button size="sm" variant="secondary" onClick={() => openReject(p)} disabled={acting}>Reject</Button>
                 </div>
               )}
             </li>
           ))}
         </ul>
       )}
+
     {pendingAcceptId && (
       <Modal title="Accept proposal?" onClose={() => setPendingAcceptId(null)} footer={
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -110,6 +125,23 @@ export function ProposalReviewPage() {
         </div>
       }>
         <p>This deliverable has <strong>{childCount}</strong> child deliverable{childCount !== 1 ? 's' : ''}. Accepting this proposal will also assign them all to the same contributor without a separate bidding process.</p>
+      </Modal>
+    )}
+
+    {rejectTarget && (
+      <Modal title="Reject proposal" onClose={() => setRejectTarget(null)} footer={
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={() => setRejectTarget(null)}>Cancel</Button>
+          <Button variant="danger" onClick={doReject} disabled={acting}>Reject</Button>
+        </div>
+      }>
+        <p style={{ marginBottom: 12 }}>Rejecting <strong>{rejectTarget.contributor_name}</strong>'s bid of <strong>{formatCurrency(rejectTarget.bid_amount)}</strong>.</p>
+        <Textarea
+          value={rejectMessage}
+          onChange={e => setRejectMessage(e.target.value)}
+          rows={3}
+          placeholder="Reason for rejection (optional — shown to contributor)"
+        />
       </Modal>
     )}
     </div>

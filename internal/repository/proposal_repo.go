@@ -65,6 +65,13 @@ func (r *ProposalRepo) UpdateStatus(id string, status models.ProposalStatus) err
 	return r.db.Model(&models.Proposal{}).Where("id = ?", id).Update("status", status).Error
 }
 
+func (r *ProposalRepo) Reject(id string, rejectionMessage string) error {
+	return r.db.Model(&models.Proposal{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":            models.ProposalRejected,
+		"rejection_message": rejectionMessage,
+	}).Error
+}
+
 func (r *ProposalRepo) UpdateBid(id string, bidAmount float64, message string, etaDate *time.Time) error {
 	return r.db.Model(&models.Proposal{}).Where("id = ? AND status = 'pending'", id).Updates(map[string]interface{}{
 		"bid_amount": bidAmount,

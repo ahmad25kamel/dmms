@@ -185,6 +185,11 @@ function ProposalCard({ proposal: p, withdrawingId, onEdit, onWithdraw }: {
             "{p.message}"
           </p>
         )}
+        {p.status === 'rejected' && p.rejection_message && (
+          <p style={{ fontSize: 12, color: 'var(--rose)', marginBottom: 8, padding: '6px 10px', background: 'color-mix(in srgb, var(--rose) 8%, transparent)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--rose)' }}>
+            Rejection reason: {p.rejection_message}
+          </p>
+        )}
         <p style={{ fontSize: 12, color: 'var(--fg-4)' }}>Submitted {formatDate(p.created_at)}</p>
       </div>
 

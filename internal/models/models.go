@@ -235,8 +235,9 @@ type Proposal struct {
 	ContributorID    string         `json:"contributor_id" gorm:"column:contributor_id;not null;size:191"`
 	BidAmount        float64        `json:"bid_amount" gorm:"column:bid_amount;not null"`
 	ETADate          *time.Time     `json:"eta_date" gorm:"column:eta_date"`
-	Message          string         `json:"message"`
-	Status           ProposalStatus `json:"status" gorm:"not null;default:'pending'"`
+	Message           string         `json:"message"`
+	RejectionMessage  string         `json:"rejection_message" gorm:"column:rejection_message;size:1000"`
+	Status            ProposalStatus `json:"status" gorm:"not null;default:'pending'"`
 	CreatedAt        time.Time      `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 	ContributorName              string         `json:"contributor_name,omitempty" gorm:"->"`
 	DeliverableTitle             string         `json:"deliverable_title,omitempty" gorm:"->"`

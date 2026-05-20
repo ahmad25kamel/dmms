@@ -220,11 +220,15 @@ func (h *ProposalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusForbidden, "you are not the PM of this project")
 		return
 	}
-	if err := h.proposals.UpdateStatus(id, models.ProposalRejected); err != nil {
+	var body struct {
+		Message string `json:"message"`
+	}
+	_ = Decode(r, &body)
+	if err := h.proposals.Reject(id, body.Message); err != nil {
 		Err(w, http.StatusInternalServerError, "failed to reject")
 		return
 	}
 	h.audit.Log(callerID, "proposal.reject", "proposal", id,
-		d.Title, fmt.Sprintf(`{"contributor_id":"%s","deliverable_id":"%s"}`, proposal.ContributorID, proposal.DeliverableID))
+		d.Title, fmt.Sprintf(`{"contributor_id":"%s","deliverable_id":"%s","message":"%s"}`, proposal.ContributorID, proposal.DeliverableID, body.Message))
 	JSON(w, http.StatusOK, map[string]bool{"rejected": true})
 }
