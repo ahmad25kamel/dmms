@@ -37,16 +37,25 @@ npm run build:mcp       # compile MCP server → dist-mcp/index.js
 npm run type-check      # TypeScript type check (linter)
 ```
 
-### Full Production Build
+### Full Production Build & Deploy
+
+**Always use the deploy script for builds** — it handles npm install, frontend build, MCP build, Go binary, and systemd service restart in one step:
 
 ```bash
-./start-dmms.sh         # builds Go + frontend + MCP, then starts server
-# OR manually:
-npm run build && npm run build:mcp && go build -o dmms-server ./cmd/dmms
-source .env && ./dmms-server
-
-# To deploy as a systemd service (Linux):
 ./scripts/deploy-service.sh
+```
+
+What it does:
+1. Validates `.env` (requires `DMMS_JWT_SECRET`, `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`)
+2. `npm ci && npm run build && npm run build:mcp`
+3. `go build -o dmms-server ./cmd/dmms`
+4. Installs/restarts a user-level systemd service (`~/.config/systemd/user/dmms.service`)
+
+Post-deploy:
+```bash
+systemctl --user status dmms      # check status
+journalctl --user -u dmms -f      # tail logs
+systemctl --user restart dmms     # restart only (no rebuild)
 ```
 
 ### End-to-End Tests
