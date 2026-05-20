@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { proposalsApi } from '../../api';
 import type { Proposal, ProposalStatus } from '../../types';
-import { Badge, Spinner, EmptyState, Button, useToast } from '../../components/ui';
+import { Badge, Spinner, EmptyState, Button, useToast, Modal, Textarea } from '../../components/ui';
 import { formatCurrency, formatDate, proposalStatusColor } from '../../lib/statusColors';
 
 const STATUS_FILTERS: { label: string; value: ProposalStatus | 'all' }[] = [
@@ -28,6 +28,8 @@ export function AllProposalsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ProposalStatus | 'all'>('all');
   const [actingId, setActingId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Proposal | null>(null);
+  const [rejectMessage, setRejectMessage] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,11 +53,20 @@ export function AllProposalsPage() {
     }
   }
 
-  async function handleReject(id: string) {
-    setActingId(id);
+  function openReject(proposal: Proposal) {
+    setRejectTarget(proposal);
+    setRejectMessage('');
+  }
+
+  async function doReject() {
+    if (!rejectTarget) return;
+    setActingId(rejectTarget.id);
     try {
-      await proposalsApi.reject(id);
-      setProposals(ps => ps.map(p => p.id === id ? { ...p, status: 'rejected' as ProposalStatus } : p));
+      await proposalsApi.reject(rejectTarget.id, rejectMessage);
+      const msg = rejectMessage;
+      const id = rejectTarget.id;
+      setProposals(ps => ps.map(p => p.id === id ? { ...p, status: 'rejected' as ProposalStatus, rejection_message: msg } : p));
+      setRejectTarget(null);
       toast('Proposal rejected', 'success');
     } catch {
       toast('Failed to reject proposal', 'error');
@@ -256,6 +267,11 @@ export function AllProposalsPage() {
                             "{p.message}"
                           </p>
                         )}
+                        {p.status === 'rejected' && p.rejection_message && (
+                          <p style={{ fontSize: 12, color: 'var(--rose)', marginBottom: 6, padding: '6px 10px', background: 'var(--rose-soft)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--rose)' }}>
+                            Rejection reason: {p.rejection_message}
+                          </p>
+                        )}
                         <p style={{ fontSize: 12, color: 'var(--fg-4)' }}>Submitted {formatDate(p.created_at)}</p>
                       </div>
 
@@ -264,7 +280,7 @@ export function AllProposalsPage() {
                           <Button size="sm" onClick={() => handleAccept(p.id, p.deliverable_id)} disabled={!!actingId}>
                             {actingId === p.id ? 'Accepting…' : 'Accept'}
                           </Button>
-                          <Button size="sm" variant="danger" onClick={() => handleReject(p.id)} disabled={!!actingId}>
+                          <Button size="sm" variant="danger" onClick={() => openReject(p)} disabled={!!actingId}>
                             Reject
                           </Button>
                         </div>
@@ -277,6 +293,24 @@ export function AllProposalsPage() {
           })}
         </div>
       )}
+    {rejectTarget && (
+      <Modal title="Reject proposal" onClose={() => setRejectTarget(null)} footer={
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={() => setRejectTarget(null)}>Cancel</Button>
+          <Button variant="danger" onClick={doReject} disabled={!!actingId}>Reject</Button>
+        </div>
+      }>
+        <p style={{ marginBottom: 12 }}>
+          Rejecting <strong>{rejectTarget.contributor_name}</strong>'s bid of <strong>{formatCurrency(rejectTarget.bid_amount)}</strong>.
+        </p>
+        <Textarea
+          value={rejectMessage}
+          onChange={e => setRejectMessage(e.target.value)}
+          rows={3}
+          placeholder="Reason for rejection (optional — shown to contributor)"
+        />
+      </Modal>
+    )}
     </div>
   );
 }
