@@ -14,6 +14,16 @@ const CONTRIBUTOR_COLORS = [
   '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1',
 ];
 
+// Colors for stacked child bars inside a collapsed parent (vivid, distinct)
+const CHILD_STACK_COLORS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1',
+];
+
+const STACK_BAR_H = 9;   // height of each stacked child bar (px)
+const STACK_GAP   = 2;   // gap between stacked bars (px)
+const STACK_PAD   = 5;   // top/bottom padding inside the row
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 export function TimelinePage() {
@@ -528,7 +538,6 @@ function TreeGantt({
                 } else if (isAssignedToMe) {
                   barColor = 'var(--kamel-blue)';
                 } else if (!isPMView && !isAssignedToMe) {
-                  // contributor view: pending proposal fake node → amber striped
                   barColor = 'var(--amber)';
                 } else {
                   barColor = 'var(--fg-4)';
@@ -546,20 +555,45 @@ function TreeGantt({
                   }
                 }
 
+                // ── Collapsed-parent stacked mode ──────────────────────────
+                const isCollapsedParent = hasChildren && collapsed.has(d.id);
+                const directChildren = isCollapsedParent ? (d.children ?? []) : [];
+
+                const childBars = directChildren.map((child, ci) => {
+                  const cs = child.start_date ? new Date(child.start_date).getTime() : null;
+                  const ce = child.due_date   ? new Date(child.due_date).getTime()   : null;
+                  return { child, cs, ce, color: CHILD_STACK_COLORS[ci % CHILD_STACK_COLORS.length] };
+                }).filter(b => b.cs !== null || b.ce !== null);
+
+                // Wrapper = soft rect spanning all child date ranges
+                let wrapperLeftPct: number | null = null;
+                let wrapperWidthPct = 0;
+                if (childBars.length > 0) {
+                  const wMin = childBars.reduce((m, b) => Math.min(m, b.cs ?? b.ce ?? Infinity), Infinity);
+                  const wMax = childBars.reduce((m, b) => Math.max(m, b.ce ?? b.cs ?? -Infinity), -Infinity);
+                  if (isFinite(wMin) && isFinite(wMax)) {
+                    wrapperLeftPct = getX(wMin);
+                    wrapperWidthPct = Math.max(0.5, getX(wMax) - wrapperLeftPct);
+                  }
+                }
+
+                // Row height grows to fit stacked bars
+                const stackedRowH = isCollapsedParent && childBars.length > 0
+                  ? Math.max(44, STACK_PAD * 2 + childBars.length * (STACK_BAR_H + STACK_GAP) - STACK_GAP)
+                  : 44;
+
                 let leftPct = 0, widthPct = 0, isPoint = false;
                 if (s && e) { leftPct = getX(s); widthPct = getX(e) - leftPct; }
                 else if (s || e) { leftPct = getX(s ?? e ?? 0); isPoint = true; }
 
                 const barBg = isPendingFakeNode
                   ? `repeating-linear-gradient(45deg, ${barColor} 0, ${barColor} 4px, transparent 4px, transparent 9px)`
-                  : isUnassigned && isPMView
-                    ? barColor
-                    : barColor;
+                  : barColor;
 
                 return (
                   <Fragment key={d.id}>
                     <div style={{
-                      display: 'flex', alignItems: 'center', height: 44,
+                      display: 'flex', alignItems: 'stretch', height: stackedRowH,
                       borderBottom: pendingProps.length === 0 ? '1px solid var(--border-1)' : 'none',
                       position: 'relative',
                       opacity: isDimmed ? 0.12 : 1,
@@ -588,33 +622,83 @@ function TreeGantt({
                           <div style={{ fontSize: 13, fontWeight: depth === 0 ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: depth === 0 ? 'var(--fg-1)' : 'var(--fg-2)' }}>
                             {d.title}
                           </div>
-                          {contributor && (
+                          {isCollapsedParent && directChildren.length > 0 ? (
+                            <div style={{ fontSize: 10, color: 'var(--fg-4)' }}>
+                              {directChildren.length} sub-deliverable{directChildren.length !== 1 ? 's' : ''}
+                            </div>
+                          ) : contributor ? (
                             <div style={{ fontSize: 10, color: 'var(--fg-4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {contributor.name}
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
 
                       <div style={{ flexGrow: 1, position: 'relative', height: '100%' }}>
-                        {(s || e) && (
-                          <div
-                            title={`${d.title}\nStart: ${d.start_date ? formatDate(d.start_date) : '?'}\nEnd: ${d.due_date ? formatDate(d.due_date) : '?'}${contributor ? `\nAssigned: ${contributor.name}` : ''}`}
-                            style={{
-                              position: 'absolute',
-                              left: `${leftPct}%`,
-                              width: isPoint ? 'auto' : `${Math.max(0.5, widthPct)}%`,
-                              height: 24, top: '50%', transform: 'translateY(-50%)',
-                              background: barBg,
-                              borderRadius: isPoint ? '12px' : '4px',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                              zIndex: 2, minWidth: isPoint ? 22 : 0,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              opacity: isUnassigned && isPMView ? 0.45 : 1,
-                            }}
-                          >
-                            {isPoint && <div style={{ width: 8, height: 8, background: 'white', borderRadius: '50%' }} />}
-                          </div>
+                        {isCollapsedParent && childBars.length > 0 ? (
+                          <>
+                            {/* Soft wrapper background spanning all children */}
+                            {wrapperLeftPct !== null && (
+                              <div style={{
+                                position: 'absolute',
+                                left: `${wrapperLeftPct}%`,
+                                width: `${wrapperWidthPct}%`,
+                                top: STACK_PAD - 2,
+                                bottom: STACK_PAD - 2,
+                                background: 'rgba(120,120,140,0.07)',
+                                border: '1px solid rgba(120,120,140,0.14)',
+                                borderRadius: 6,
+                                zIndex: 1,
+                              }} />
+                            )}
+                            {/* Stacked child bars */}
+                            {childBars.map((b, ci) => {
+                              let cLeft = 0, cWidth = 0, cPoint = false;
+                              if (b.cs && b.ce) { cLeft = getX(b.cs); cWidth = Math.max(0.4, getX(b.ce) - cLeft); }
+                              else if (b.cs || b.ce) { cLeft = getX(b.cs ?? b.ce ?? 0); cPoint = true; }
+                              const topOffset = STACK_PAD + ci * (STACK_BAR_H + STACK_GAP);
+                              return (
+                                <div
+                                  key={b.child.id}
+                                  title={`${b.child.title}\nStart: ${b.child.start_date ? formatDate(b.child.start_date) : '?'}\nEnd: ${b.child.due_date ? formatDate(b.child.due_date) : '?'}`}
+                                  style={{
+                                    position: 'absolute',
+                                    left: `${cLeft}%`,
+                                    width: cPoint ? 9 : `${cWidth}%`,
+                                    height: STACK_BAR_H,
+                                    top: topOffset,
+                                    background: b.color,
+                                    borderRadius: cPoint ? '50%' : 3,
+                                    zIndex: 2,
+                                    minWidth: cPoint ? 9 : 4,
+                                    opacity: 0.88,
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                                  }}
+                                />
+                              );
+                            })}
+                          </>
+                        ) : (
+                          /* Normal single bar */
+                          (s || e) && (
+                            <div
+                              title={`${d.title}\nStart: ${d.start_date ? formatDate(d.start_date) : '?'}\nEnd: ${d.due_date ? formatDate(d.due_date) : '?'}${contributor ? `\nAssigned: ${contributor.name}` : ''}`}
+                              style={{
+                                position: 'absolute',
+                                left: `${leftPct}%`,
+                                width: isPoint ? 'auto' : `${Math.max(0.5, widthPct)}%`,
+                                height: 24, top: '50%', transform: 'translateY(-50%)',
+                                background: barBg,
+                                borderRadius: isPoint ? '12px' : '4px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                zIndex: 2, minWidth: isPoint ? 22 : 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                opacity: isUnassigned && isPMView ? 0.45 : 1,
+                              }}
+                            >
+                              {isPoint && <div style={{ width: 8, height: 8, background: 'white', borderRadius: '50%' }} />}
+                            </div>
+                          )
                         )}
                       </div>
                     </div>
