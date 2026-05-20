@@ -188,6 +188,14 @@ export interface ApiResponse<T> {
 
 export type ArtifactKind = 'link' | 'file';
 
+export interface ContributorBudget {
+  user_id: string;
+  user_name: string;
+  projected: number;
+  approved: number;
+  disbursed: number;
+}
+
 export interface SubmissionArtifact {
   id: string;
   deliverable_id: string;

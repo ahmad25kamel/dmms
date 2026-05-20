@@ -134,6 +134,7 @@ func main() {
 
 	// Ledger
 	mux.Handle("GET /api/dmms/rewards/ledger", authMW(http.HandlerFunc(rewardH.Ledger)))
+	mux.Handle("GET /api/dmms/budget/contributors", authMW(pmOnly(http.HandlerFunc(rewardH.ContributorBudgetBreakdown))))
 
 	// Kanban
 	mux.Handle("GET /api/dmms/kanban", authMW(http.HandlerFunc(kanbanH.List)))

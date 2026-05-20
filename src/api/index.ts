@@ -92,6 +92,12 @@ export const rewardsApi = {
     ),
 };
 
+// Budget breakdown (PM only)
+export const budgetApi = {
+  contributors: () =>
+    api.get<{ contributors: import('../types').ContributorBudget[] }>('/budget/contributors'),
+};
+
 // Kanban
 export const kanbanApi = {
   list: (params?: { project_id?: string; deliverable_id?: string; assigned_to?: string; status?: string; hide_archived?: boolean; limit?: number; offset?: number }) => {
