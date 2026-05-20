@@ -14,15 +14,9 @@ const CONTRIBUTOR_COLORS = [
   '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1',
 ];
 
-// Colors for stacked child bars inside a collapsed parent (vivid, distinct)
-const CHILD_STACK_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1',
-];
-
-const STACK_BAR_H = 9;   // height of each stacked child bar (px)
-const STACK_GAP   = 2;   // gap between stacked bars (px)
-const STACK_PAD   = 5;   // top/bottom padding inside the row
+const STACK_BAR_H = 10;  // height of each stacked child bar (px)
+const STACK_GAP   = 0;   // no gap — flush stacking
+const STACK_PAD   = 4;   // top/bottom padding inside the row
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
@@ -559,10 +553,16 @@ function TreeGantt({
                 const isCollapsedParent = hasChildren && collapsed.has(d.id);
                 const directChildren = isCollapsedParent ? (d.children ?? []) : [];
 
-                const childBars = directChildren.map((child, ci) => {
+                const childBars = directChildren.map(child => {
                   const cs = child.start_date ? new Date(child.start_date).getTime() : null;
                   const ce = child.due_date   ? new Date(child.due_date).getTime()   : null;
-                  return { child, cs, ce, color: CHILD_STACK_COLORS[ci % CHILD_STACK_COLORS.length] };
+                  const childPIC = acceptedByDeliverable.get(child.id);
+                  const color = isPMView
+                    ? (childPIC && contributorColorMap
+                        ? contributorColorMap.get(childPIC.id) ?? 'var(--fg-4)'
+                        : 'var(--fg-4)')
+                    : (childPIC ? 'var(--kamel-blue)' : 'var(--amber)');
+                  return { child, cs, ce, color, picName: childPIC?.name ?? null };
                 }).filter(b => b.cs !== null || b.ce !== null);
 
                 // Wrapper = soft rect spanning all child date ranges
@@ -647,32 +647,33 @@ function TreeGantt({
                                 bottom: STACK_PAD - 2,
                                 background: 'rgba(120,120,140,0.07)',
                                 border: '1px solid rgba(120,120,140,0.14)',
-                                borderRadius: 6,
+                                borderRadius: 0,
                                 zIndex: 1,
                               }} />
                             )}
-                            {/* Stacked child bars */}
+                            {/* Stacked child bars — flush, no gap, no rounded */}
                             {childBars.map((b, ci) => {
                               let cLeft = 0, cWidth = 0, cPoint = false;
                               if (b.cs && b.ce) { cLeft = getX(b.cs); cWidth = Math.max(0.4, getX(b.ce) - cLeft); }
                               else if (b.cs || b.ce) { cLeft = getX(b.cs ?? b.ce ?? 0); cPoint = true; }
-                              const topOffset = STACK_PAD + ci * (STACK_BAR_H + STACK_GAP);
+                              const topOffset = STACK_PAD + ci * STACK_BAR_H;
+                              const picLine = b.picName ? `\nPIC: ${b.picName}` : '\nPIC: Unassigned';
+                              const tooltip = `${b.child.title}${picLine}\nStart: ${b.child.start_date ? formatDate(b.child.start_date) : '?'}\nEnd: ${b.child.due_date ? formatDate(b.child.due_date) : '?'}`;
                               return (
                                 <div
                                   key={b.child.id}
-                                  title={`${b.child.title}\nStart: ${b.child.start_date ? formatDate(b.child.start_date) : '?'}\nEnd: ${b.child.due_date ? formatDate(b.child.due_date) : '?'}`}
+                                  title={tooltip}
                                   style={{
                                     position: 'absolute',
                                     left: `${cLeft}%`,
-                                    width: cPoint ? 9 : `${cWidth}%`,
+                                    width: cPoint ? 10 : `${cWidth}%`,
                                     height: STACK_BAR_H,
                                     top: topOffset,
                                     background: b.color,
-                                    borderRadius: cPoint ? '50%' : 3,
+                                    borderRadius: 0,
                                     zIndex: 2,
-                                    minWidth: cPoint ? 9 : 4,
-                                    opacity: 0.88,
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                                    minWidth: cPoint ? 10 : 4,
+                                    opacity: 0.9,
                                   }}
                                 />
                               );
