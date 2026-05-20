@@ -1,0 +1,160 @@
+name: PR Preview — Destroy
+
+on:
+  pull_request:
+    types: [closed]
+
+env:
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+
+jobs:
+  destroy:
+    name: "Destroy PR #${{ github.event.pull_request.number }} Preview"
+    runs-on: ubuntu-latest
+    environment: HotamaDev
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+
+    steps:
+      # ──────────────────────────────────────────
+      - name: Compute names
+      # ──────────────────────────────────────────
+        id: vars
+        run: |
+          PR="${{ env.PR_NUMBER }}"
+          echo "preview_path=${{ secrets.PREVIEW_BASE_PATH }}/pr-${PR}" >> "$GITHUB_OUTPUT"
+          echo "service=dmms-pr-${PR}"                                   >> "$GITHUB_OUTPUT"
+          echo "db_name=dmms_pr_${PR}"                                   >> "$GITHUB_OUTPUT"
+
+      # ──────────────────────────────────────────
+      - name: Install Cloudflared
+      # ──────────────────────────────────────────
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+
+      # ──────────────────────────────────────────
+      - name: Setup SSH
+      # ──────────────────────────────────────────
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Configure SSH for Cloudflare Tunnel
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host ${{ secrets.SSH_HOST }}
+            ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+            StrictHostKeyChecking no
+            UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+
+      # ──────────────────────────────────────────
+      - name: Destroy preview environment
+      # ──────────────────────────────────────────
+        run: |
+          ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} bash -s << 'ENDSSH'
+            set -uo pipefail
+
+            PR="${{ env.PR_NUMBER }}"
+            PREVIEW_PATH="${{ steps.vars.outputs.preview_path }}"
+            SERVICE="${{ steps.vars.outputs.service }}"
+            DB_NAME="${{ steps.vars.outputs.db_name }}"
+            REPO_PATH="${{ secrets.DEPLOY_PATH }}"
+
+            # ── Load DB credentials from main deploy ────────────────────────
+            set -a
+            source "${REPO_PATH}/.env"
+            set +a
+
+            echo "==> Stopping systemd service"
+            if systemctl is-active --quiet "${SERVICE}" 2>/dev/null; then
+              sudo systemctl stop "${SERVICE}"
+              echo "Stopped: ${SERVICE}"
+            fi
+            if systemctl is-enabled --quiet "${SERVICE}" 2>/dev/null; then
+              sudo systemctl disable "${SERVICE}"
+            fi
+            if [[ -f "/etc/systemd/system/${SERVICE}.service" ]]; then
+              sudo rm -f "/etc/systemd/system/${SERVICE}.service"
+              sudo systemctl daemon-reload
+              echo "Service file removed"
+            fi
+
+            echo "==> Removing Apache VirtualHost"
+            if [[ -L "/etc/apache2/sites-enabled/pr-${PR}-dmms.conf" ]]; then
+              sudo a2dissite "pr-${PR}-dmms.conf"
+            fi
+            sudo rm -f "/etc/apache2/sites-available/pr-${PR}-dmms.conf"
+            sudo rm -f "/var/log/apache2/pr-${PR}-dmms-access.log"
+            sudo rm -f "/var/log/apache2/pr-${PR}-dmms-error.log"
+            if sudo systemctl is-active --quiet apache2; then
+              sudo apache2ctl configtest && sudo systemctl reload apache2
+              echo "Apache reloaded"
+            fi
+
+            echo "==> Dropping database ${DB_NAME}"
+            EXISTS=$(mysql \
+              -h "${DB_HOST}" -P "${DB_PORT}" \
+              -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+              -sse "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${DB_NAME}'" \
+              2>/dev/null || echo 0)
+            if [[ "$EXISTS" -gt 0 ]]; then
+              mysql -h "${DB_HOST}" -P "${DB_PORT}" \
+                    -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+                    -e "DROP DATABASE \`${DB_NAME}\`;"
+              echo "Dropped: ${DB_NAME}"
+            else
+              echo "Database not found: ${DB_NAME}"
+            fi
+
+            echo "==> Removing git worktree"
+            cd "$REPO_PATH"
+            if git worktree list | grep -q "$PREVIEW_PATH"; then
+              git worktree remove "$PREVIEW_PATH" --force
+              echo "Worktree removed"
+            fi
+            if [[ -d "$PREVIEW_PATH" ]]; then
+              rm -rf "$PREVIEW_PATH"
+              echo "Directory removed"
+            fi
+
+            echo "==> Done"
+          ENDSSH
+
+      # ──────────────────────────────────────────
+      - name: Update PR comment — destroyed
+      # ──────────────────────────────────────────
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DB_NAME="${{ steps.vars.outputs.db_name }}"
+          BODY="## 🗑️ Preview Environment Destroyed
+
+          PR #${{ env.PR_NUMBER }} preview has been cleaned up.
+
+          | Resource | Status |
+          |---|---|
+          | Apache VirtualHost | ✅ Removed |
+          | Systemd service | ✅ Stopped & removed |
+          | Database (\`${DB_NAME}\`) | ✅ Dropped |
+          | Git worktree | ✅ Removed |"
+
+          EXISTING=$(gh pr view ${{ env.PR_NUMBER }} \
+            --repo ${{ github.repository }} \
+            --json comments \
+            --jq '[.comments[] | select(.body | (startswith("## 🚀 Preview") or startswith("## ❌ Preview") or startswith("## 🗑️ Preview")))] | first | .databaseId' \
+            2>/dev/null || echo "")
+
+          if [[ -n "$EXISTING" && "$EXISTING" != "null" ]]; then
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/issues/comments/$EXISTING \
+              -f body="$BODY"
+          else
+            gh pr comment ${{ env.PR_NUMBER }} \
+              --repo ${{ github.repository }} \
+              --body "$BODY"
+          fi
