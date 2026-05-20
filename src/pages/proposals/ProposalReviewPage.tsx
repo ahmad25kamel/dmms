@@ -100,7 +100,7 @@ export function ProposalReviewPage() {
                 </div>
                 {p.message && <p className="body-sm">{p.message}</p>}
                 {p.status === 'rejected' && p.rejection_message && (
-                  <p style={{ fontSize: 12, color: 'var(--rose)', marginTop: 4, padding: '6px 10px', background: 'color-mix(in srgb, var(--rose) 8%, transparent)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--rose)' }}>
+                  <p style={{ fontSize: 12, color: 'var(--rose)', marginTop: 4, padding: '6px 10px', background: 'var(--rose-soft)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--rose)' }}>
                     Rejection reason: {p.rejection_message}
                   </p>
                 )}

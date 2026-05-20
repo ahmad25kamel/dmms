@@ -42,7 +42,7 @@ func (r *ProposalRepo) FindByID(id string) (*models.Proposal, error) {
 func (r *ProposalRepo) ListByDeliverable(deliverableID string) ([]*models.Proposal, error) {
 	var proposals []*models.Proposal
 	err := r.db.Table("dmms_proposals p").
-		Select("p.*, u.name as contributor_name").
+		Select("p.id, p.deliverable_id, p.contributor_id, p.bid_amount, p.eta_date, p.message, p.rejection_message, p.status, p.created_at, u.name as contributor_name").
 		Joins("JOIN dmms_users u ON u.id=p.contributor_id").
 		Where("p.deliverable_id = ?", deliverableID).
 		Order("p.created_at").Scan(&proposals).Error
@@ -52,7 +52,7 @@ func (r *ProposalRepo) ListByDeliverable(deliverableID string) ([]*models.Propos
 func (r *ProposalRepo) ListByContributor(contributorID string) ([]*models.Proposal, error) {
 	var proposals []*models.Proposal
 	err := r.db.Table("dmms_proposals p").
-		Select("p.*, u.name as contributor_name, d.title as deliverable_title, pr.name as project_name").
+		Select("p.id, p.deliverable_id, p.contributor_id, p.bid_amount, p.eta_date, p.message, p.rejection_message, p.status, p.created_at, u.name as contributor_name, d.title as deliverable_title, d.max_budget as deliverable_max_budget, d.parent_id as parent_deliverable_id, pr.name as project_name").
 		Joins("JOIN dmms_users u ON u.id = p.contributor_id").
 		Joins("JOIN dmms_deliverables d ON d.id = p.deliverable_id").
 		Joins("JOIN dmms_projects pr ON pr.id = d.project_id").
