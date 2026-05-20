@@ -210,15 +210,23 @@ function ReviseModal({ proposal, onClose, onSave }: {
   onClose: () => void;
   onSave: (id: string, bid_amount: number, message: string) => Promise<void>;
 }) {
-  const [bidAmount, setBidAmount] = useState(String(proposal.bid_amount));
+  const [bidAmount, setBidAmount] = useState(() => {
+    const digits = String(Math.round(proposal.bid_amount));
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  });
   const [message, setMessage] = useState(proposal.message || '');
   const [saving, setSaving] = useState(false);
+
+  function handleBidChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, '');
+    setBidAmount(digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave(proposal.id, parseFloat(bidAmount) || 0, message);
+      await onSave(proposal.id, parseFloat(bidAmount.replace(/\./g, '')) || 0, message);
     } finally {
       setSaving(false);
     }
@@ -236,7 +244,7 @@ function ReviseModal({ proposal, onClose, onSave }: {
           Revising bid for: <strong style={{ color: 'var(--fg-1)' }}>{proposal.deliverable_title || 'Deliverable'}</strong>
         </div>
         <FormField label="Bid Amount (Rp)">
-          <Input type="number" value={bidAmount} onChange={e => setBidAmount(e.target.value)} min="0.01" step="0.01" required />
+          <Input type="text" inputMode="numeric" value={bidAmount} onChange={handleBidChange} placeholder="0" required />
         </FormField>
         <FormField label="Message to PM">
           <Textarea value={message} onChange={e => setMessage(e.target.value)} rows={4} placeholder="Why are you the right fit for this deliverable?" />

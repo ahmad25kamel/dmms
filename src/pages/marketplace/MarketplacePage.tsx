@@ -245,9 +245,18 @@ function ProposalForm({ deliverable, onClose, onBidSubmitted }: { deliverable: D
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
+  function handleBidChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, '');
+    setBid(digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const amount = parseFloat(bid);
+    const amount = parseFloat(bid.replace(/\./g, ''));
+    if (!amount || amount < 1) {
+      setError('Please enter a valid bid amount');
+      return;
+    }
     if (amount > deliverable.max_budget) {
       setError(`Bid cannot exceed ${formatCurrency(deliverable.max_budget)}`);
       return;
@@ -276,7 +285,7 @@ function ProposalForm({ deliverable, onClose, onBidSubmitted }: { deliverable: D
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <p className="body-sm">Max budget: <strong>{formatCurrency(deliverable.max_budget)}</strong></p>
           <FormField label="Your bid amount (Rp)">
-            <Input type="number" value={bid} onChange={e => setBid(e.target.value)} max={deliverable.max_budget} min="1" required />
+            <Input type="text" inputMode="numeric" value={bid} onChange={handleBidChange} placeholder="0" required />
           </FormField>
           <FormField label="Message to PM">
             <Textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Why are you a good fit?" />
