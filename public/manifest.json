@@ -2,7 +2,7 @@
   "name": "DMMS — Deliverable Management",
   "short_name": "DMMS",
   "description": "Deliverable Modular Management System — manage projects, proposals, and rewards.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#F9FAFB",
