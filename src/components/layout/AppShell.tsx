@@ -78,6 +78,12 @@ const Icon = {
       <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
     </svg>
   ),
+  Timeline: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="13" y2="14"/><line x1="7" y1="18" x2="11" y2="18"/>
+    </svg>
+  ),
 };
 
 interface NavItem { to: string; label: string; icon: React.ReactNode; roles: string[]; }
@@ -90,6 +96,7 @@ const navItems: NavItem[] = [
   { to: '/proposals',      label: 'My Proposals',   icon: <Icon.Proposals />,  roles: ['contributor'] },
   { to: '/workspace',      label: 'My Work',        icon: <Icon.Work />,       roles: ['contributor'] },
   { to: '/kanban',         label: 'Kanban',         icon: <Icon.Kanban />,     roles: ['pm','contributor','admin'] },
+  { to: '/timeline',       label: 'Timeline',       icon: <Icon.Timeline />,   roles: ['pm','contributor'] },
   { to: '/review',         label: 'Review Center',  icon: <Icon.Review />,     roles: ['pm'] },
   { to: '/ledger',         label: 'Rewards',        icon: <Icon.Ledger />,     roles: ['pm','contributor','admin'] },
   { to: '/budget',         label: 'Budget',         icon: <Icon.Budget />,     roles: ['pm','admin'] },

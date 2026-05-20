@@ -20,6 +20,7 @@ import { BudgetPage } from './pages/budget/BudgetPage';
 import { AdminPage } from './pages/admin/AdminPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { KanbanPage } from './pages/kanban/KanbanPage';
+import { TimelinePage } from './pages/timeline/TimelinePage';
 import { Spinner, ToastProvider } from './components/ui';
 import type { ReactNode } from 'react';
 
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="/ledger" element={<LedgerPage />} />
         <Route path="/budget" element={<BudgetPage />} />
         <Route path="/kanban" element={<KanbanPage />} />
+        <Route path="/timeline" element={<TimelinePage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/audit" element={<AuditPage />} />
       </Route>
