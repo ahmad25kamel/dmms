@@ -750,9 +750,6 @@ function KanbanCard({ task: t, onSelect }: {
   task: KanbanTask;
   onSelect: (t: KanbanTask) => void;
 }) {
-  const { user } = useAuth();
-  const isContributor = user?.role === 'contributor';
-  const showArtifactBtn = isContributor && (t.status === 'done' || t.status === 'in_progress') && !!t.deliverable_id;
   // Effective deadline: task's own due_date, falling back to deliverable's due_date
   const effectiveDue = t.due_date || t.deliverable_due_date;
   const isFromDeliverable = !t.due_date && !!t.deliverable_due_date;
@@ -851,11 +848,6 @@ function KanbanCard({ task: t, onSelect }: {
           )}
         </div>
       </div>
-      {showArtifactBtn && (
-        <div style={{ marginTop: 8, borderTop: '1px solid var(--border-1)', paddingTop: 8 }} onClick={e => e.stopPropagation()}>
-          <AddToSubmissionButton task={t} />
-        </div>
-      )}
     </div>
   );
 }
@@ -1068,6 +1060,16 @@ function TaskDetailModal({ task, users, onClose, onUpdated, onDeleted }: {
                 <p className="meta" style={{ fontSize: 13 }}>No attachments</p>
               )}
             </Section>
+
+            {/* Add to Submission Artifacts — contributors only */}
+            {user?.role === 'contributor' && (t.status === 'in_progress' || t.status === 'done') && t.deliverable_id && (
+              <Section label="Submission Artifact">
+                <p style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 10, lineHeight: 1.5 }}>
+                  Attach a link or file as evidence for this task. It will be pre-loaded when you submit the deliverable for review.
+                </p>
+                <AddToSubmissionButton task={t} />
+              </Section>
+            )}
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 12, flexWrap: 'wrap' }}>
