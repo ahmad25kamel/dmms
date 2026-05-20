@@ -1,0 +1,233 @@
+name: PR Preview — Deploy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/CODEOWNERS'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+
+# Cancel in-progress preview deploys for the same PR
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+
+jobs:
+  deploy-preview:
+    name: "Deploy PR #${{ github.event.pull_request.number }} Preview"
+    if: |
+      !contains(github.event.pull_request.title, '[skip ci]') &&
+      !contains(github.event.pull_request.title, '[skip preview]') &&
+      !contains(toJson(github.event.pull_request.head.commit.message), '[skip ci]')
+    runs-on: ubuntu-latest
+    environment: HotamaDev
+    timeout-minutes: 15
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      # ──────────────────────────────────────────
+      - name: Compute names
+      # ──────────────────────────────────────────
+        id: vars
+        run: |
+          PR="${{ env.PR_NUMBER }}"
+          echo "port=$((3200 + PR))"                                                >> "$GITHUB_OUTPUT"
+          echo "preview_path=${{ secrets.PREVIEW_BASE_PATH }}/pr-${PR}"            >> "$GITHUB_OUTPUT"
+          echo "service=dmms-pr-${PR}"                                              >> "$GITHUB_OUTPUT"
+          echo "vhost=pr-${PR}-dmms.hotamadev.com"                                  >> "$GITHUB_OUTPUT"
+          echo "db_name=dmms_pr_${PR}"                                              >> "$GITHUB_OUTPUT"
+          echo "pr_branch=${{ github.head_ref }}"                                   >> "$GITHUB_OUTPUT"
+
+      # ──────────────────────────────────────────
+      - name: Install Cloudflared
+      # ──────────────────────────────────────────
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+
+      # ──────────────────────────────────────────
+      - name: Setup SSH
+      # ──────────────────────────────────────────
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Configure SSH for Cloudflare Tunnel
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host ${{ secrets.SSH_HOST }}
+            ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+            StrictHostKeyChecking no
+            UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+
+      # ──────────────────────────────────────────
+      - name: Deploy preview on server
+      # ──────────────────────────────────────────
+        run: |
+          ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} bash -s << 'ENDSSH'
+            set -euo pipefail
+            export PATH=$PATH:/usr/local/go/bin:/usr/local/bin
+
+            PR="${{ env.PR_NUMBER }}"
+            BRANCH="${{ steps.vars.outputs.pr_branch }}"
+            PREVIEW_PATH="${{ steps.vars.outputs.preview_path }}"
+            REPO_PATH="${{ secrets.DEPLOY_PATH }}"
+            PORT="${{ steps.vars.outputs.port }}"
+            SERVICE="${{ steps.vars.outputs.service }}"
+            DB_NAME="${{ steps.vars.outputs.db_name }}"
+
+            # ── Load env from main deploy ──────────────────────────────────
+            set -a
+            source "${REPO_PATH}/.env"
+            set +a
+            # DB_NAME is overridden for this PR
+            MAIN_DB="${DB_DATABASE}"
+
+            echo "==> Fetching PR branch"
+            cd "$REPO_PATH"
+            git fetch origin "$BRANCH"
+
+            echo "==> Setting up worktree at $PREVIEW_PATH"
+            if git worktree list | grep -q "$PREVIEW_PATH"; then
+              git -C "$PREVIEW_PATH" checkout "$BRANCH"
+              git -C "$PREVIEW_PATH" pull origin "$BRANCH"
+            else
+              mkdir -p "$(dirname "$PREVIEW_PATH")"
+              git worktree add "$PREVIEW_PATH" "$BRANCH"
+            fi
+
+            echo "==> Building frontend"
+            cd "$PREVIEW_PATH"
+            npm ci --silent
+            npm run build
+
+            echo "==> Building Go binary"
+            go build -o "dmms-server-pr-${PR}" ./cmd/dmms
+
+            echo "==> Cloning database ${MAIN_DB} → ${DB_NAME}"
+            mysql -h "${DB_HOST}" -P "${DB_PORT}" \
+                  -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+                  -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+            mysqldump -h "${DB_HOST}" -P "${DB_PORT}" \
+                      -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+                      --single-transaction --no-tablespaces \
+                      "${MAIN_DB}" \
+              | mysql -h "${DB_HOST}" -P "${DB_PORT}" \
+                      -u "${DB_USERNAME}" -p"${DB_PASSWORD}" \
+                      "${DB_NAME}"
+            echo "Database cloned"
+
+            echo "==> Writing systemd service"
+            sudo tee /etc/systemd/system/${SERVICE}.service > /dev/null << EOF
+          [Unit]
+          Description=DMMS PR ${PR} Preview
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=${PREVIEW_PATH}
+          ExecStart=${PREVIEW_PATH}/dmms-server-pr-${PR}
+          Environment="DMMS_JWT_SECRET=${DMMS_JWT_SECRET}"
+          Environment="DMMS_PORT=${PORT}"
+          Environment="DB_HOST=${DB_HOST}"
+          Environment="DB_PORT=${DB_PORT}"
+          Environment="DB_DATABASE=${DB_NAME}"
+          Environment="DB_USERNAME=${DB_USERNAME}"
+          Environment="DB_PASSWORD=${DB_PASSWORD}"
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+            echo "==> Starting service"
+            sudo systemctl daemon-reload
+            sudo systemctl enable "${SERVICE}"
+            if sudo systemctl is-active --quiet "${SERVICE}"; then
+              sudo systemctl restart "${SERVICE}"
+            else
+              sudo systemctl start "${SERVICE}"
+            fi
+
+            echo "==> Writing Apache VirtualHost"
+            sudo tee /etc/apache2/sites-available/pr-${PR}-dmms.conf > /dev/null << EOF
+          <VirtualHost *:80>
+              ServerName pr-${PR}-dmms.hotamadev.com
+
+              ProxyPreserveHost On
+              ProxyPass        / http://localhost:${PORT}/
+              ProxyPassReverse / http://localhost:${PORT}/
+
+              Header always set X-Content-Type-Options  "nosniff"
+              Header always set X-Frame-Options         "SAMEORIGIN"
+              Header always set X-XSS-Protection        "1; mode=block"
+              Header always set Referrer-Policy         "strict-origin-when-cross-origin"
+
+              ErrorLog  /var/log/apache2/pr-${PR}-dmms-error.log
+              CustomLog /var/log/apache2/pr-${PR}-dmms-access.log combined
+          </VirtualHost>
+          EOF
+
+            sudo a2ensite "pr-${PR}-dmms.conf"
+            sudo apache2ctl configtest
+            sudo systemctl reload apache2
+            echo "==> Preview ready at http://pr-${PR}-dmms.hotamadev.com (port ${PORT})"
+          ENDSSH
+
+      # ──────────────────────────────────────────
+      - name: Comment on PR
+      # ──────────────────────────────────────────
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VHOST="${{ steps.vars.outputs.vhost }}"
+          PORT="${{ steps.vars.outputs.port }}"
+          DB_NAME="${{ steps.vars.outputs.db_name }}"
+          SHA="${{ github.event.pull_request.head.sha }}"
+          SHORT_SHA="${SHA:0:7}"
+
+          if [[ "${{ job.status }}" == "success" ]]; then
+            BODY="## 🚀 Preview Environment Ready
+
+          | | |
+          |---|---|
+          | **URL** | http://${VHOST} |
+          | **Branch** | \`${{ github.head_ref }}\` |
+          | **Commit** | \`${SHORT_SHA}\` |
+          | **Database** | \`${DB_NAME}\` (cloned from production) |
+
+          > Preview updates automatically on every push to this PR."
+          else
+            BODY="## ❌ Preview Deploy Failed
+
+          PR #${{ env.PR_NUMBER }} preview failed for commit \`${SHORT_SHA}\`.
+          Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          fi
+
+          EXISTING=$(gh pr view ${{ env.PR_NUMBER }} \
+            --repo ${{ github.repository }} \
+            --json comments \
+            --jq '[.comments[] | select(.body | (startswith("## 🚀 Preview") or startswith("## ❌ Preview") or startswith("## 🗑️ Preview")))] | first | .databaseId' \
+            2>/dev/null || echo "")
+
+          if [[ -n "$EXISTING" && "$EXISTING" != "null" ]]; then
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/issues/comments/$EXISTING \
+              -f body="$BODY"
+          else
+            gh pr comment ${{ env.PR_NUMBER }} \
+              --repo ${{ github.repository }} \
+              --body "$BODY"
+          fi
