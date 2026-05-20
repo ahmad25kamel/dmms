@@ -246,6 +246,8 @@ type Proposal struct {
 	ParentDeliverableTitle       string         `json:"parent_deliverable_title,omitempty" gorm:"->"`
 	GrandparentDeliverableTitle  string         `json:"grandparent_deliverable_title,omitempty" gorm:"->"`
 	ProjectName                  string         `json:"project_name,omitempty" gorm:"->"`
+	DeliverableStartDate         *time.Time     `json:"deliverable_start_date,omitempty" gorm:"->"`
+	DeliverableDueDate           *time.Time     `json:"deliverable_due_date,omitempty" gorm:"->"`
 }
 
 func (Proposal) TableName() string { return "dmms_proposals" }

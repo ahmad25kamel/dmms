@@ -14,6 +14,7 @@ interface TItem {
   color: string;
   striped: boolean;
   tooltip: string;
+  groupLabel?: string; // if set, render as a section header row
 }
 
 type FilterMode = 'all' | 'assigned' | 'proposed';
@@ -144,10 +145,15 @@ function ContributorTimeline() {
 
 // ─── PM view ──────────────────────────────────────────────────────────────────
 
+const CONTRIBUTOR_PALETTE = [
+  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+  '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+];
+
 function PMTimeline() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedContributor, setSelectedContributor] = useState('');
+  const [selectedContributor, setSelectedContributor] = useState(''); // '' = all
 
   useEffect(() => {
     proposalsApi.allForPM().then(setProposals).finally(() => setLoading(false));
@@ -165,77 +171,167 @@ function PMTimeline() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [proposals]);
 
+  const colorMap = useMemo(() => {
+    const m = new Map<string, string>();
+    contributors.forEach((c, i) => m.set(c.id, CONTRIBUTOR_PALETTE[i % CONTRIBUTOR_PALETTE.length]));
+    return m;
+  }, [contributors]);
+
   const items = useMemo<TItem[]>(() => {
-    if (!selectedContributor) return [];
-    return proposals
-      .filter(p => p.contributor_id === selectedContributor && p.eta_date)
-      .map(p => ({
-        id: `p-${p.id}`,
-        title: p.deliverable_title ?? 'Deliverable',
-        project: p.project_name ?? '',
+    const filtered = selectedContributor
+      ? proposals.filter(p => p.contributor_id === selectedContributor)
+      : proposals;
+
+    // Build rows per contributor, sorted by contributor name then by start/end date
+    const byContributor = new Map<string, Proposal[]>();
+    filtered.forEach(p => {
+      if (!byContributor.has(p.contributor_id)) byContributor.set(p.contributor_id, []);
+      byContributor.get(p.contributor_id)!.push(p);
+    });
+
+    const out: TItem[] = [];
+    const sortedContributorIds = [...byContributor.keys()].sort((a, b) => {
+      const na = byContributor.get(a)![0].contributor_name ?? '';
+      const nb = byContributor.get(b)![0].contributor_name ?? '';
+      return na.localeCompare(nb);
+    });
+
+    sortedContributorIds.forEach(cid => {
+      const cProposals = byContributor.get(cid)!;
+      const color = colorMap.get(cid) ?? '#6B7280';
+      const name = cProposals[0].contributor_name ?? cid;
+
+      const rowItems: TItem[] = cProposals
+        .map(p => {
+          const isAccepted = p.status === 'accepted';
+          const isPending = p.status === 'pending';
+
+          // Use deliverable dates for accepted items; eta as fallback end
+          const startMs = isAccepted && p.deliverable_start_date
+            ? new Date(p.deliverable_start_date).getTime()
+            : null;
+          const endMs = isAccepted
+            ? (p.deliverable_due_date
+                ? new Date(p.deliverable_due_date).getTime()
+                : p.eta_date ? new Date(p.eta_date).getTime() : null)
+            : p.eta_date ? new Date(p.eta_date).getTime() : null;
+
+          if (startMs === null && endMs === null) return null;
+
+          const hierarchyParts: string[] = [];
+          if (p.grandparent_deliverable_title) hierarchyParts.push(p.grandparent_deliverable_title);
+          if (p.parent_deliverable_title) hierarchyParts.push(p.parent_deliverable_title);
+          const hierarchy = hierarchyParts.join(' › ');
+
+          return {
+            id: `p-${p.id}`,
+            title: p.deliverable_title ?? 'Deliverable',
+            project: hierarchy || (p.project_name ?? ''),
+            startMs,
+            endMs,
+            color: isAccepted ? color : isPending ? color : '#9CA3AF',
+            striped: isPending,
+            tooltip: [
+              name,
+              p.deliverable_title ?? 'Deliverable',
+              hierarchy,
+              `Project: ${p.project_name ?? ''}`,
+              `Status: ${p.status}`,
+              p.deliverable_start_date ? `Start: ${formatDate(p.deliverable_start_date)}` : null,
+              p.deliverable_due_date ? `Due: ${formatDate(p.deliverable_due_date)}` : null,
+              p.eta_date ? `ETA: ${formatDate(p.eta_date)}` : null,
+            ].filter(Boolean).join('\n'),
+          } satisfies TItem;
+        })
+        .filter((x): x is TItem => x !== null)
+        .sort((a, b) => (a.startMs ?? a.endMs ?? 0) - (b.startMs ?? b.endMs ?? 0));
+
+      if (rowItems.length === 0) return;
+
+      // Group header row
+      out.push({
+        id: `group-${cid}`,
+        groupLabel: name,
+        title: '',
+        project: '',
         startMs: null,
-        endMs: p.eta_date ? new Date(p.eta_date).getTime() : null,
-        color: p.status === 'accepted' ? 'var(--kamel-blue)' : p.status === 'pending' ? 'var(--amber)' : 'var(--fg-3)',
-        striped: p.status === 'pending',
-        tooltip: [
-          p.deliverable_title ?? 'Deliverable',
-          `Status: ${p.status}`,
-          p.eta_date ? `ETA: ${formatDate(p.eta_date)}` : null,
-        ].filter(Boolean).join('\n'),
-      }))
-      .sort((a, b) => (a.endMs ?? 0) - (b.endMs ?? 0));
-  }, [proposals, selectedContributor]);
+        endMs: null,
+        color,
+        striped: false,
+        tooltip: '',
+      });
+      out.push(...rowItems);
+    });
+
+    return out;
+  }, [proposals, selectedContributor, colorMap]);
 
   if (loading) return <Spinner />;
+
+  const totalItems = items.filter(i => !i.groupLabel).length;
 
   return (
     <div className="dmms-page">
       <div className="dmms-page-head">
         <div>
           <h1>Contributor Timeline</h1>
-          <p className="dmms-page-sub">View timeline and ETA commitments by contributor</p>
+          <p className="dmms-page-sub">
+            {contributors.length} contributor{contributors.length !== 1 ? 's' : ''} · {totalItems} scheduled item{totalItems !== 1 ? 's' : ''}
+          </p>
         </div>
       </div>
 
-      <div style={{ marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 13, color: 'var(--fg-3)', fontWeight: 500 }}>Contributor:</label>
-        <select
-          value={selectedContributor}
-          onChange={e => setSelectedContributor(e.target.value)}
-          style={{
-            padding: '6px 12px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-1)',
-            background: 'var(--bg-1)',
-            color: 'var(--fg-1)',
-            fontSize: 13,
-            minWidth: 220,
-          }}
-        >
-          <option value="">— Select contributor —</option>
-          {contributors.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        {selectedContributor && (
-          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
-            {items.length} item{items.length !== 1 ? 's' : ''} with ETA
-          </span>
-        )}
-      </div>
+      {/* Contributor filter pills */}
+      {contributors.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            onClick={() => setSelectedContributor('')}
+            style={{
+              padding: '5px 14px', borderRadius: 'var(--radius-sm)',
+              border: `2px solid ${selectedContributor === '' ? 'var(--kamel-blue)' : 'var(--border-1)'}`,
+              background: selectedContributor === '' ? 'var(--kamel-blue)' : 'var(--bg-1)',
+              color: selectedContributor === '' ? '#fff' : 'var(--fg-2)',
+              fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            All
+          </button>
+          {contributors.map((c, i) => {
+            const color = CONTRIBUTOR_PALETTE[i % CONTRIBUTOR_PALETTE.length];
+            const active = selectedContributor === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setSelectedContributor(active ? '' : c.id)}
+                style={{
+                  padding: '5px 14px', borderRadius: 'var(--radius-sm)',
+                  border: `2px solid ${active ? color : 'var(--border-1)'}`,
+                  background: active ? color : 'var(--bg-1)',
+                  color: active ? '#fff' : 'var(--fg-2)',
+                  fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {!selectedContributor ? (
+      {contributors.length === 0 ? (
         <EmptyState
-          title="Select a contributor"
-          description="Choose a contributor from the dropdown above to view their committed timeline."
+          title="No contributor data"
+          description="No proposals have been submitted on your projects yet."
         />
-      ) : items.length === 0 ? (
+      ) : items.filter(i => !i.groupLabel).length === 0 ? (
         <EmptyState
           title="No timeline data"
-          description="This contributor has no proposals with ETA dates."
+          description="No proposals with scheduled dates found. Contributors need to set ETA dates or deliverables need start/due dates."
         />
       ) : (
-        <FlatGantt items={items} showLegend />
+        <FlatGantt items={items} showLegend contributorColorMap={colorMap} />
       )}
     </div>
   );
@@ -246,7 +342,7 @@ function PMTimeline() {
 const WEEK_WIDTH = 50;
 const LABEL_WIDTH = 300;
 
-function FlatGantt({ items, showLegend }: { items: TItem[]; showLegend?: boolean }) {
+function FlatGantt({ items, showLegend, contributorColorMap }: { items: TItem[]; showLegend?: boolean; contributorColorMap?: Map<string, string> }) {
   let minMs = Infinity;
   let maxMs = -Infinity;
 
@@ -348,6 +444,26 @@ function FlatGantt({ items, showLegend }: { items: TItem[]; showLegend?: boolean
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {items.map(item => {
+                // Group header row
+                if (item.groupLabel) {
+                  return (
+                    <div key={item.id} style={{ display: 'flex', height: 32, borderBottom: '1px solid var(--border-1)', background: 'var(--bg-2)', position: 'sticky', left: 0 }}>
+                      <div style={{
+                        width: LABEL_WIDTH, flexShrink: 0,
+                        paddingLeft: 12, display: 'flex', alignItems: 'center', gap: 8,
+                        position: 'sticky', left: 0, zIndex: 10, background: 'var(--bg-2)',
+                        borderRight: '1px solid var(--border-1)',
+                      }}>
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.groupLabel}
+                        </span>
+                      </div>
+                      <div style={{ flexGrow: 1 }} />
+                    </div>
+                  );
+                }
+
                 const s = item.startMs;
                 const e = item.endMs;
                 let leftPct = 0, widthPct = 0, isPoint = false;
@@ -413,14 +529,31 @@ function FlatGantt({ items, showLegend }: { items: TItem[]; showLegend?: boolean
 
       {showLegend && (
         <div style={{ display: 'flex', gap: 20, padding: '10px 16px', borderTop: '1px solid var(--border-1)', fontSize: 12, color: 'var(--fg-3)', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 20, height: 10, background: 'var(--kamel-blue)', borderRadius: 2 }} />
-            Assigned
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 20, height: 10, borderRadius: 2, background: 'repeating-linear-gradient(45deg, var(--amber) 0, var(--amber) 4px, transparent 4px, transparent 9px)' }} />
-            Proposed (pending)
-          </div>
+          {contributorColorMap
+            ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 20, height: 10, background: '#9CA3AF', borderRadius: 2 }} />
+                  Solid = Accepted
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 20, height: 10, borderRadius: 2, background: 'repeating-linear-gradient(45deg, #9CA3AF 0, #9CA3AF 4px, transparent 4px, transparent 9px)' }} />
+                  Striped = Pending
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 20, height: 10, background: 'var(--kamel-blue)', borderRadius: 2 }} />
+                  Assigned
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 20, height: 10, borderRadius: 2, background: 'repeating-linear-gradient(45deg, var(--amber) 0, var(--amber) 4px, transparent 4px, transparent 9px)' }} />
+                  Proposed (pending)
+                </div>
+              </>
+            )
+          }
           {todayX !== null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 2, height: 14, background: 'rgba(239,68,68,0.5)' }} />

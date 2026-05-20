@@ -99,7 +99,7 @@ func (r *ProposalRepo) CountByProject(projectID string) ([]ProposalDeliverableCo
 func (r *ProposalRepo) ListByPM(pmID string) ([]*models.Proposal, error) {
 	var proposals []*models.Proposal
 	err := r.db.Table("dmms_proposals p").
-		Select("p.*, u.name as contributor_name, d.title as deliverable_title, d.max_budget as deliverable_max_budget, d.parent_id as parent_deliverable_id, pd.title as parent_deliverable_title, gpd.title as grandparent_deliverable_title, pr.name as project_name").
+		Select("p.*, u.name as contributor_name, d.title as deliverable_title, d.max_budget as deliverable_max_budget, d.parent_id as parent_deliverable_id, d.start_date as deliverable_start_date, d.due_date as deliverable_due_date, pd.title as parent_deliverable_title, gpd.title as grandparent_deliverable_title, pr.name as project_name").
 		Joins("JOIN dmms_users u ON u.id = p.contributor_id").
 		Joins("JOIN dmms_deliverables d ON d.id = p.deliverable_id").
 		Joins("LEFT JOIN dmms_deliverables pd ON pd.id = d.parent_id").
