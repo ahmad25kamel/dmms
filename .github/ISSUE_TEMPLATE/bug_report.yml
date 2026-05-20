@@ -13,19 +13,19 @@ body:
       label: Area
       description: Which part of the system is affected?
       options:
+        - Admin
+        - API / Backend
         - Auth / JWT
-        - Projects
+        - Database / migrations
         - Deliverables
-        - Proposals
-        - Submissions
-        - Rewards ledger
+        - Frontend / UI
         - Kanban board
         - Marketplace
-        - Admin
         - MCP server
-        - Frontend / UI
-        - API / Backend
-        - Database / migrations
+        - Projects
+        - Proposals
+        - Rewards ledger
+        - Submissions
         - Other
     validations:
       required: true
