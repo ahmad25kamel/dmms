@@ -66,10 +66,10 @@ func (r *ProposalRepo) UpdateStatus(id string, status models.ProposalStatus) err
 }
 
 func (r *ProposalRepo) Reject(id string, rejectionMessage string) error {
-	return r.db.Exec(
-		"UPDATE dmms_proposals SET status = ?, rejection_message = ? WHERE id = ?",
-		models.ProposalRejected, rejectionMessage, id,
-	).Error
+	return r.db.Model(&models.Proposal{}).
+		Where("id = ?", id).
+		Select("status", "rejection_message").
+		Updates(&models.Proposal{Status: models.ProposalRejected, RejectionMessage: rejectionMessage}).Error
 }
 
 func (r *ProposalRepo) UpdateBid(id string, bidAmount float64, message string, etaDate *time.Time) error {
