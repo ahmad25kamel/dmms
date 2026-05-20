@@ -230,5 +230,5 @@ func (h *ProposalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit.Log(callerID, "proposal.reject", "proposal", id,
 		d.Title, fmt.Sprintf(`{"contributor_id":"%s","deliverable_id":"%s","message":"%s"}`, proposal.ContributorID, proposal.DeliverableID, body.Message))
-	JSON(w, http.StatusOK, map[string]bool{"rejected": true})
+	JSON(w, http.StatusOK, map[string]string{"rejected": "true", "rejection_message": body.Message})
 }
