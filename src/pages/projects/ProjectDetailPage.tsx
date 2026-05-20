@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { projectsApi, deliverablesApi } from '../../api';
-import type { Project, Deliverable } from '../../types';
+import { projectsApi, deliverablesApi, proposalsApi } from '../../api';
+import type { Project, Deliverable, Proposal } from '../../types';
 import { Badge, Button, KpiCard, Spinner, ProgressBar, Alert, Modal, Input, Textarea, FormField } from '../../components/ui';
 import { formatCurrency, formatDate, projectStatusColor } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
@@ -21,6 +21,7 @@ export function ProjectDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [proposals, setProposals] = useState<Proposal[]>([]);
 
   const handleEditOpen = () => {
     if (!project) return;
@@ -61,11 +62,13 @@ export function ProjectDetailPage() {
   const loadData = () => {
     if (!projectId) return;
     setLoading(true);
+    const isPM = user?.role === 'pm' || user?.role === 'admin';
     Promise.all([
       projectsApi.get(projectId),
-      deliverablesApi.tree(projectId)
+      deliverablesApi.tree(projectId),
+      isPM ? proposalsApi.allForPM() : Promise.resolve([] as Proposal[]),
     ])
-    .then(([p, t]) => {
+    .then(([p, t, props]) => {
       setProject(p);
       const sortTree = (nodes: Deliverable[]): Deliverable[] => {
         return nodes.map(n => ({
@@ -74,17 +77,18 @@ export function ProjectDetailPage() {
         })).sort((a, b) => {
           const s1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
           const s2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
-          
+
           if (s1 !== s2) {
             return s1 - s2;
           }
-          
+
           const e1 = a.due_date ? new Date(a.due_date).getTime() : -Infinity;
           const e2 = b.due_date ? new Date(b.due_date).getTime() : -Infinity;
           return e2 - e1;
         });
       };
       setTree(sortTree(t));
+      setProposals(props as Proposal[]);
     })
     .finally(() => setLoading(false));
   };
@@ -230,7 +234,7 @@ export function ProjectDetailPage() {
         {tree.length === 0 ? (
           <p className="meta">No deliverables found.</p>
         ) : (
-          <GanttChart tree={tree} project={project} />
+          <GanttChart tree={tree} project={project} proposals={proposals} />
         )}
       </div>
 
@@ -316,8 +320,9 @@ export function ProjectDetailPage() {
   );
 }
 
-function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project }) {
+function GanttChart({ tree, project, proposals = [] }: { tree: Deliverable[]; project?: Project; proposals?: Proposal[] }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [contributorFilter, setContributorFilter] = useState('');
 
   const toggleCollapse = (id: string) => {
     setCollapsed(prev => {
@@ -328,15 +333,56 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
     });
   };
 
+  // Build deliverable ID set for this project
+  const deliverableIds = useMemo(() => {
+    const ids = new Set<string>();
+    function collect(nodes: Deliverable[]) {
+      nodes.forEach(n => { ids.add(n.id); if (n.children?.length) collect(n.children); });
+    }
+    collect(tree);
+    return ids;
+  }, [tree]);
+
+  const projectProposals = useMemo(
+    () => proposals.filter(p => deliverableIds.has(p.deliverable_id)),
+    [proposals, deliverableIds]
+  );
+
+  const acceptedByDeliverable = useMemo(() => {
+    const map = new Map<string, { name: string; id: string }>();
+    projectProposals
+      .filter(p => p.status === 'accepted')
+      .forEach(p => map.set(p.deliverable_id, { name: p.contributor_name ?? '', id: p.contributor_id }));
+    return map;
+  }, [projectProposals]);
+
+  const pendingByDeliverable = useMemo(() => {
+    const map = new Map<string, Proposal[]>();
+    projectProposals
+      .filter(p => p.status === 'pending' && p.eta_date)
+      .forEach(p => {
+        const list = map.get(p.deliverable_id) ?? [];
+        list.push(p);
+        map.set(p.deliverable_id, list);
+      });
+    return map;
+  }, [projectProposals]);
+
+  const contributors = useMemo(() => {
+    const map = new Map<string, string>();
+    projectProposals.forEach(p => {
+      if (p.contributor_id && p.contributor_name) map.set(p.contributor_id, p.contributor_name);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [projectProposals]);
+
   // Flatten tree for chart with collapsed state
   const flat: { d: Deliverable; depth: number; hasChildren: boolean }[] = [];
   function flatten(nodes: Deliverable[], depth = 0) {
     nodes.forEach(n => {
       const hasChildren = !!(n.children && n.children.length > 0);
       flat.push({ d: n, depth, hasChildren });
-      if (hasChildren && !collapsed.has(n.id)) {
-        flatten(n.children!, depth + 1);
-      }
+      if (hasChildren && !collapsed.has(n.id)) flatten(n.children!, depth + 1);
     });
   }
   flatten(tree);
@@ -349,21 +395,13 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
   const updateBounds = (d: Date) => {
     const t = d.getTime();
     if (isNaN(t)) return;
-    if (!hasDates) {
-      minDate = new Date(t);
-      maxDate = new Date(t);
-      hasDates = true;
-    } else {
-      if (t < minDate.getTime()) minDate = new Date(t);
-      if (t > maxDate.getTime()) maxDate = new Date(t);
-    }
+    if (!hasDates) { minDate = new Date(t); maxDate = new Date(t); hasDates = true; }
+    else { if (t < minDate.getTime()) minDate = new Date(t); if (t > maxDate.getTime()) maxDate = new Date(t); }
   };
 
-  // Include project dates
   if (project?.start_date) updateBounds(new Date(project.start_date));
   if (project?.end_date) updateBounds(new Date(project.end_date));
 
-  // Include all deliverable dates
   function findBounds(nodes: Deliverable[]) {
     nodes.forEach(n => {
       if (n.start_date) updateBounds(new Date(n.start_date));
@@ -373,16 +411,16 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
   }
   findBounds(tree);
 
-  // Default range if no dates found
+  // Include proposal ETAs in bounds
+  projectProposals.forEach(p => { if (p.eta_date) updateBounds(new Date(p.eta_date)); });
+
   if (!hasDates) {
     const now = new Date();
     minDate = new Date(now.getFullYear(), now.getMonth(), 1);
     maxDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   }
 
-  // Generate months and weeks
   const months: { name: string; year: number; weeks: { label: string; start: number; end: number }[] }[] = [];
-  
   const startY = minDate.getFullYear();
   const startM = minDate.getMonth();
   const endY = maxDate.getFullYear();
@@ -391,51 +429,60 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
   for (let y = startY; y <= endY; y++) {
     const mFrom = y === startY ? startM : 0;
     const mTo = y === endY ? endM : 11;
-    
     for (let m = mFrom; m <= mTo; m++) {
       const date = new Date(y, m, 1);
       const monthName = date.toLocaleString('id-ID', { month: 'long' });
       const monthWeeks: { label: string; start: number; end: number }[] = [];
-      
       const daysInMonth = new Date(y, m + 1, 0).getDate();
       for (let i = 0; i < daysInMonth; i += 7) {
         const weekNum = Math.floor(i / 7) + 1;
         const weekStart = new Date(y, m, i + 1);
         const weekEnd = new Date(y, m, Math.min(i + 7, daysInMonth));
-        monthWeeks.push({
-          label: `W${weekNum}`,
-          start: weekStart.getTime(),
-          end: weekEnd.getTime()
-        });
+        monthWeeks.push({ label: `W${weekNum}`, start: weekStart.getTime(), end: weekEnd.getTime() });
       }
-      
       months.push({ name: monthName, year: y, weeks: monthWeeks });
     }
   }
 
   const startMonth = new Date(startY, startM, 1);
   const endMonth = new Date(endY, endM + 1, 0);
-
   const WEEK_WIDTH = 50;
   const totalWeeks = months.reduce((acc, m) => acc + m.weeks.length, 0);
   const timelineWidth = totalWeeks * WEEK_WIDTH;
   const chartStartTime = startMonth.getTime();
   const chartEndTime = endMonth.getTime() + 24 * 60 * 60 * 1000;
   const totalDuration = chartEndTime - chartStartTime;
+  const getX = (time: number) => ((time - chartStartTime) / totalDuration) * 100;
 
-  const getX = (time: number) => {
-    return ((time - chartStartTime) / totalDuration) * 100;
-  };
+  const totalPendingEtas = [...pendingByDeliverable.values()].reduce((acc, ps) => acc + ps.length, 0);
 
   return (
-    <div style={{ 
-      background: 'var(--bg-1)', 
-      border: '1px solid var(--border-1)', 
-      borderRadius: 'var(--radius-lg)', 
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
+    <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Contributor filter toolbar */}
+      {contributors.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--border-1)', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 12, color: 'var(--fg-3)', fontWeight: 500 }}>Filter by contributor:</label>
+          <select
+            value={contributorFilter}
+            onChange={e => setContributorFilter(e.target.value)}
+            style={{ padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-1)', background: 'var(--bg-1)', color: 'var(--fg-1)', fontSize: 12, minWidth: 180 }}
+          >
+            <option value="">All contributors</option>
+            {contributors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          {contributorFilter && (
+            <button onClick={() => setContributorFilter('')} style={{ fontSize: 12, color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+              ✕ Clear
+            </button>
+          )}
+          {totalPendingEtas > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--fg-4)', marginLeft: 'auto' }}>
+              {totalPendingEtas} pending proposal ETA{totalPendingEtas !== 1 ? 's' : ''} shown
+            </span>
+          )}
+        </div>
+      )}
+
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 800 + timelineWidth, display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
@@ -444,34 +491,16 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
               DELIVERABLE
             </div>
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-              {/* Months */}
               <div style={{ display: 'flex', borderBottom: '1px solid var(--border-1)' }}>
                 {months.map((m, i) => (
-                  <div key={i} style={{ 
-                    width: m.weeks.length * WEEK_WIDTH, 
-                    flexShrink: 0, 
-                    padding: '8px 12px', 
-                    fontSize: 12, 
-                    fontWeight: 600, 
-                    borderRight: '1px solid var(--border-1)',
-                    background: 'var(--bg-2)'
-                  }}>
+                  <div key={i} style={{ width: m.weeks.length * WEEK_WIDTH, flexShrink: 0, padding: '8px 12px', fontSize: 12, fontWeight: 600, borderRight: '1px solid var(--border-1)', background: 'var(--bg-2)' }}>
                     {m.name} {m.year}
                   </div>
                 ))}
               </div>
-              {/* Weeks */}
               <div style={{ display: 'flex', borderBottom: '1px solid var(--border-1)' }}>
                 {months.map((m) => m.weeks.map((w, j) => (
-                  <div key={`${m.name}-${j}`} style={{ 
-                    width: WEEK_WIDTH, 
-                    flexShrink: 0, 
-                    textAlign: 'center', 
-                    fontSize: 10, 
-                    padding: '4px 0', 
-                    borderRight: '1px solid var(--border-1)',
-                    color: 'var(--fg-3)'
-                  }}>
+                  <div key={`${m.name}-${j}`} style={{ width: WEEK_WIDTH, flexShrink: 0, textAlign: 'center', fontSize: 10, padding: '4px 0', borderRight: '1px solid var(--border-1)', color: 'var(--fg-3)' }}>
                     {w.label}
                   </div>
                 )))}
@@ -481,7 +510,6 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
 
           {/* Body */}
           <div style={{ position: 'relative' }}>
-            {/* Grid Lines */}
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: 350, right: 0, display: 'flex', pointerEvents: 'none' }}>
               {months.map((m) => m.weeks.map((_, j) => (
                 <div key={`${m.name}-${j}`} style={{ width: WEEK_WIDTH, flexShrink: 0, borderRight: '1px solid var(--border-1)', opacity: 0.2, height: '100%' }} />
@@ -492,99 +520,83 @@ function GanttChart({ tree, project }: { tree: Deliverable[], project?: Project 
               {flat.map(({ d, depth, hasChildren }) => {
                 const s = d.start_date ? new Date(d.start_date).getTime() : null;
                 const e = d.due_date ? new Date(d.due_date).getTime() : null;
-                
-                let left = 0;
-                let width = 0;
-                let isPoint = false;
 
-                if (s && e) {
-                  left = getX(s);
-                  width = getX(e) - left;
-                } else if (s || e) {
-                  left = getX(s || e || 0);
-                  width = 1; 
-                  isPoint = true;
-                }
+                let left = 0, width = 0, isPoint = false;
+                if (s && e) { left = getX(s); width = getX(e) - left; }
+                else if (s || e) { left = getX(s || e || 0); isPoint = true; }
+
+                const contributor = acceptedByDeliverable.get(d.id);
+                const pendingProps = pendingByDeliverable.get(d.id) ?? [];
+                const isDimmed = !!contributorFilter && contributor?.id !== contributorFilter && !pendingProps.some(p => p.contributor_id === contributorFilter);
 
                 return (
-                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', height: 40, borderBottom: '1px solid var(--border-1)', position: 'relative' }}>
-                    {/* Sticky Title Column */}
-                    <div style={{ 
-                      width: 350, 
-                      flexShrink: 0, 
-                      paddingLeft: 16 + depth * 20, 
-                      paddingRight: 16,
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 8, 
-                      zIndex: 10, 
-                      background: 'var(--bg-1)', 
-                      position: 'sticky', 
-                      left: 0,
-                      height: '100%',
-                      borderRight: '1px solid var(--border-1)'
-                    }}>
-                      {hasChildren ? (
-                        <button
-                          onClick={() => toggleCollapse(d.id)}
-                          aria-label={collapsed.has(d.id) ? `Expand ${d.title}` : `Collapse ${d.title}`}
-                          aria-expanded={!collapsed.has(d.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            color: 'var(--fg-3)',
-                            transform: collapsed.has(d.id) ? 'rotate(-90deg)' : 'none',
-                            transition: 'transform 0.2s'
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </button>
-                      ) : (
-                        <div style={{ width: 14 }} />
-                      )}
-                      <span style={{ 
-                        fontSize: 13, 
-                        fontWeight: depth === 0 ? 600 : 400, 
-                        whiteSpace: 'nowrap', 
-                        overflow: 'hidden', 
-                        textOverflow: 'ellipsis',
-                        color: depth === 0 ? 'var(--fg-1)' : 'var(--fg-2)'
-                      }}>
-                        {d.title}
-                      </span>
+                  <Fragment key={d.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', height: 44, borderBottom: pendingProps.length === 0 ? '1px solid var(--border-1)' : 'none', position: 'relative', opacity: isDimmed ? 0.15 : 1, transition: 'opacity 0.15s' }}>
+                      <div style={{ width: 350, flexShrink: 0, paddingLeft: 16 + depth * 20, paddingRight: 16, display: 'flex', alignItems: 'center', gap: 8, zIndex: 10, background: 'var(--bg-1)', position: 'sticky', left: 0, height: '100%', borderRight: '1px solid var(--border-1)' }}>
+                        {hasChildren ? (
+                          <button
+                            onClick={() => toggleCollapse(d.id)}
+                            aria-label={collapsed.has(d.id) ? `Expand ${d.title}` : `Collapse ${d.title}`}
+                            aria-expanded={!collapsed.has(d.id)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, color: 'var(--fg-3)', transform: collapsed.has(d.id) ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                          </button>
+                        ) : (
+                          <div style={{ width: 14, flexShrink: 0 }} />
+                        )}
+                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                          <div style={{ fontSize: 13, fontWeight: depth === 0 ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: depth === 0 ? 'var(--fg-1)' : 'var(--fg-2)' }}>
+                            {d.title}
+                          </div>
+                          {contributor && (
+                            <div style={{ fontSize: 10, color: 'var(--fg-4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {contributor.name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ flexGrow: 1, position: 'relative', height: '100%' }}>
+                        {(s || e) && (
+                          <div
+                            style={{ position: 'absolute', left: `${left}%`, width: isPoint ? 'auto' : `${Math.max(0.5, width)}%`, height: 24, top: '50%', transform: 'translateY(-50%)', background: isPoint ? 'var(--amber)' : 'var(--kamel-blue)', borderRadius: isPoint ? '12px' : '4px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', zIndex: 2, minWidth: isPoint ? 24 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            title={`${d.title}\nStart: ${d.start_date ? formatDate(d.start_date) : '?'}\nEnd: ${d.due_date ? formatDate(d.due_date) : '?'}${contributor ? `\nAssigned: ${contributor.name}` : ''}`}
+                          >
+                            {isPoint && <div style={{ width: 8, height: 8, background: 'white', borderRadius: '50%' }} />}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Timeline Bar Area */}
-                    <div style={{ flexGrow: 1, position: 'relative', height: '100%' }}>
-                      {(s || e) && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            left: `${left}%`,
-                            width: isPoint ? 'auto' : `${Math.max(0.5, width)}%`,
-                            height: 24,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: isPoint ? 'var(--amber)' : 'var(--kamel-blue)',
-                            borderRadius: isPoint ? '12px' : '4px',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                            zIndex: 2,
-                            minWidth: isPoint ? 24 : 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title={`${d.title}\nStart: ${d.start_date ? formatDate(d.start_date) : '?'}\nEnd: ${d.due_date ? formatDate(d.due_date) : '?'}`}
-                        >
-                          {isPoint && <div style={{ width: 8, height: 8, background: 'white', borderRadius: '50%' }} />}
+                    {/* Pending proposal ETA sub-rows */}
+                    {pendingProps.map((p, pi) => {
+                      const etaMs = p.eta_date ? new Date(p.eta_date).getTime() : null;
+                      const etaLeft = etaMs ? getX(etaMs) : 0;
+                      const isLast = pi === pendingProps.length - 1;
+                      const isPropDimmed = !!contributorFilter && p.contributor_id !== contributorFilter;
+                      return (
+                        <div key={`p-${p.id}`} style={{ display: 'flex', alignItems: 'center', height: 30, borderBottom: isLast ? '1px solid var(--border-1)' : 'none', position: 'relative', opacity: isPropDimmed ? 0.1 : 0.8 }}>
+                          <div style={{ width: 350, flexShrink: 0, paddingLeft: 16 + (depth + 1) * 20, paddingRight: 16, display: 'flex', alignItems: 'center', gap: 8, zIndex: 10, background: 'var(--bg-1)', position: 'sticky', left: 0, height: '100%', borderRight: '1px solid var(--border-1)' }}>
+                            <div style={{ width: 14, flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, color: 'var(--fg-4)', fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {p.contributor_name ?? 'Unknown'} — ETA
+                            </span>
+                          </div>
+                          <div style={{ flexGrow: 1, position: 'relative', height: '100%' }}>
+                            {etaMs && (
+                              <div
+                                title={`${p.contributor_name ?? 'Unknown'} — ETA: ${formatDate(p.eta_date)}`}
+                                style={{ position: 'absolute', left: `${etaLeft}%`, width: 'auto', height: 18, top: '50%', transform: 'translateY(-50%)', background: 'var(--amber)', borderRadius: '50%', zIndex: 2, minWidth: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <div style={{ width: 6, height: 6, background: 'white', borderRadius: '50%' }} />
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      );
+                    })}
+                  </Fragment>
                 );
               })}
             </div>
