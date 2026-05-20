@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 
 	"dmms/internal/middleware"
 	"dmms/internal/models"
@@ -43,4 +44,29 @@ func (h *RewardHandler) Ledger(w http.ResponseWriter, r *http.Request) {
 
 	total, _ := h.rewards.SumByUser(userID)
 	JSON(w, http.StatusOK, map[string]interface{}{"entries": entries, "total": total})
+}
+
+func (h *RewardHandler) ContributorBudgetBreakdown(w http.ResponseWriter, r *http.Request) {
+	role := middleware.GetRole(r)
+	userID := middleware.GetUserID(r)
+	if role != models.RolePM && role != models.RoleAdmin {
+		Err(w, http.StatusForbidden, "pm only")
+		return
+	}
+
+	rows, err := h.rewards.BudgetBreakdownByPM(userID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to compute budget breakdown")
+		return
+	}
+	if rows == nil {
+		rows = []*repository.ContributorBudgetRow{}
+	}
+	// Sort by total desc
+	sort.Slice(rows, func(i, j int) bool {
+		ti := rows[i].Projected + rows[i].Approved + rows[i].Disbursed
+		tj := rows[j].Projected + rows[j].Approved + rows[j].Disbursed
+		return ti > tj
+	})
+	JSON(w, http.StatusOK, map[string]interface{}{"contributors": rows})
 }

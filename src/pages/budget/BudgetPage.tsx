@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { projectsApi } from '../../api';
-import type { Project } from '../../types';
+import { projectsApi, budgetApi } from '../../api';
+import type { Project, ContributorBudget } from '../../types';
 import { Spinner, EmptyState, Badge } from '../../components/ui';
 import { formatCurrency, projectStatusColor } from '../../lib/statusColors';
 
+type Tab = 'projects' | 'contributors';
+
 export function BudgetPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [contributors, setContributors] = useState<ContributorBudget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('projects');
 
   useEffect(() => {
-    projectsApi.list(100).then(res => setProjects(res.items)).finally(() => setLoading(false));
+    Promise.all([
+      projectsApi.list(100).then(res => setProjects(res.items)),
+      budgetApi.contributors().then(res => setContributors(res.contributors ?? [])).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Spinner />;
@@ -20,6 +27,10 @@ export function BudgetPage() {
   const totalSaved = projects.reduce((s, p) => s + p.budget_saved, 0);
   const totalRemaining = totalBudget - totalAllocated;
   const utilizationPct = totalBudget > 0 ? Math.round((totalAllocated / totalBudget) * 100) : 0;
+
+  const totalDisbursed = contributors.reduce((s, c) => s + c.disbursed, 0);
+  const totalApproved = contributors.reduce((s, c) => s + c.approved, 0);
+  const totalProjected = contributors.reduce((s, c) => s + c.projected, 0);
 
   return (
     <div className="dmms-page">
@@ -68,45 +79,177 @@ export function BudgetPage() {
         </div>
       </div>
 
-      {/* Per-project breakdown */}
-      {projects.length === 0 ? (
-        <EmptyState title="No projects" description="Create projects to track budget allocation." />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700 }}>Per-project breakdown</h3>
-          {projects.map(p => {
-            const pct = p.budget_total > 0 ? (p.budget_allocated / p.budget_total) * 100 : 0;
-            const remaining = p.budget_total - p.budget_allocated;
-            return (
-              <div key={p.id} style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', padding: '16px 20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Link to={`/projects/${p.id}`} style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg-0)', textDecoration: 'none' }}>{p.name}</Link>
-                    <Badge color={projectStatusColor[p.status]}>{p.status}</Badge>
-                  </div>
-                  <Link to={`/projects/${p.id}/tree`} style={{ fontSize: 12, color: 'var(--fg-4)', textDecoration: 'none' }}>View tree →</Link>
-                </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border-1)', paddingBottom: 0 }}>
+        {(['projects', 'contributors'] as Tab[]).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
+              fontSize: 13, fontWeight: 600, color: tab === t ? 'var(--kamel-blue)' : 'var(--fg-3)',
+              borderBottom: tab === t ? '2px solid var(--kamel-blue)' : '2px solid transparent',
+              marginBottom: -1, transition: 'color 0.15s',
+            }}
+          >
+            {t === 'projects' ? 'Per Project' : 'Per Contributor'}
+          </button>
+        ))}
+      </div>
 
-                <div style={{ height: 6, background: 'var(--bg-3)', borderRadius: 99, overflow: 'hidden', marginBottom: 10 }}>
-                  <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 90 ? 'var(--rose)' : pct > 70 ? 'var(--amber)' : 'var(--kamel-blue)', borderRadius: 99, transition: 'width 0.4s' }} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                  {[
-                    { label: 'Total', value: formatCurrency(p.budget_total), color: 'var(--fg-1)' },
-                    { label: 'Allocated', value: formatCurrency(p.budget_allocated), color: 'var(--kamel-blue)' },
-                    { label: 'Remaining', value: formatCurrency(remaining), color: remaining < 0 ? 'var(--rose)' : 'var(--fg-1)' },
-                    { label: 'Saved', value: formatCurrency(p.budget_saved), color: 'var(--emerald)' },
-                  ].map(col => (
-                    <div key={col.label} style={{ textAlign: 'center', background: 'var(--bg-2)', borderRadius: 'var(--radius-sm)', padding: '8px 4px' }}>
-                      <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-4)' }}>{col.label}</p>
-                      <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: col.color }}>{col.value}</p>
+      {tab === 'projects' && (
+        projects.length === 0 ? (
+          <EmptyState title="No projects" description="Create projects to track budget allocation." />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700 }}>Per-project breakdown</h3>
+            {projects.map(p => {
+              const pct = p.budget_total > 0 ? (p.budget_allocated / p.budget_total) * 100 : 0;
+              const remaining = p.budget_total - p.budget_allocated;
+              return (
+                <div key={p.id} style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', padding: '16px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <Link to={`/projects/${p.id}`} style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg-0)', textDecoration: 'none' }}>{p.name}</Link>
+                      <Badge color={projectStatusColor[p.status]}>{p.status}</Badge>
                     </div>
-                  ))}
+                    <Link to={`/projects/${p.id}/tree`} style={{ fontSize: 12, color: 'var(--fg-4)', textDecoration: 'none' }}>View tree →</Link>
+                  </div>
+
+                  <div style={{ height: 6, background: 'var(--bg-3)', borderRadius: 99, overflow: 'hidden', marginBottom: 10 }}>
+                    <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 90 ? 'var(--rose)' : pct > 70 ? 'var(--amber)' : 'var(--kamel-blue)', borderRadius: 99, transition: 'width 0.4s' }} />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                    {[
+                      { label: 'Total', value: formatCurrency(p.budget_total), color: 'var(--fg-1)' },
+                      { label: 'Allocated', value: formatCurrency(p.budget_allocated), color: 'var(--kamel-blue)' },
+                      { label: 'Remaining', value: formatCurrency(remaining), color: remaining < 0 ? 'var(--rose)' : 'var(--fg-1)' },
+                      { label: 'Saved', value: formatCurrency(p.budget_saved), color: 'var(--emerald)' },
+                    ].map(col => (
+                      <div key={col.label} style={{ textAlign: 'center', background: 'var(--bg-2)', borderRadius: 'var(--radius-sm)', padding: '8px 4px' }}>
+                        <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-4)' }}>{col.label}</p>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: col.color }}>{col.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {tab === 'contributors' && (
+        <div>
+          {/* Contributor-level KPI summary */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+            {[
+              { label: 'Projected (Pending Bids)', value: formatCurrency(totalProjected), color: 'var(--amber)',
+                desc: 'Sum of pending proposals across all projects' },
+              { label: 'Approved (Committed)', value: formatCurrency(totalApproved), color: 'var(--kamel-blue)',
+                desc: 'Accepted bids on active/in-progress deliverables' },
+              { label: 'Disbursed (Cair)', value: formatCurrency(totalDisbursed), color: 'var(--emerald)',
+                desc: 'Total paid out via reward ledger' },
+            ].map(s => (
+              <div key={s.label} style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', padding: '16px 20px' }}>
+                <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-3)' }}>{s.label}</p>
+                <p style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</p>
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-4)' }}>{s.desc}</p>
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          {contributors.length === 0 ? (
+            <EmptyState title="No contributor data" description="No proposals or reward entries found for your projects." />
+          ) : (
+            <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+              {/* Table header */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px 140px 140px', gap: 0, borderBottom: '1px solid var(--border-1)', padding: '10px 20px', background: 'var(--bg-2)' }}>
+                {['Contributor', 'Projected', 'Approved', 'Disbursed', 'Total'].map((h, i) => (
+                  <p key={h} style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-3)', textAlign: i > 0 ? 'right' : 'left' }}>{h}</p>
+                ))}
+              </div>
+
+              {contributors.map((c, idx) => {
+                const total = c.projected + c.approved + c.disbursed;
+                const maxTotal = contributors.reduce((m, x) => Math.max(m, x.projected + x.approved + x.disbursed), 1);
+                const barPct = (total / maxTotal) * 100;
+
+                return (
+                  <div key={c.user_id} style={{ borderBottom: idx < contributors.length - 1 ? '1px solid var(--border-1)' : 'none' }}>
+                    {/* Row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px 140px 140px', gap: 0, padding: '12px 20px', alignItems: 'center' }}>
+                      {/* Name */}
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: 'var(--fg-0)' }}>{c.user_name}</p>
+                      </div>
+                      {/* Projected */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: c.projected > 0 ? 'var(--amber)' : 'var(--fg-4)', textAlign: 'right' }}>
+                        {c.projected > 0 ? formatCurrency(c.projected) : '—'}
+                      </p>
+                      {/* Approved */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: c.approved > 0 ? 'var(--kamel-blue)' : 'var(--fg-4)', textAlign: 'right' }}>
+                        {c.approved > 0 ? formatCurrency(c.approved) : '—'}
+                      </p>
+                      {/* Disbursed */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: c.disbursed > 0 ? 'var(--emerald)' : 'var(--fg-4)', textAlign: 'right' }}>
+                        {c.disbursed > 0 ? formatCurrency(c.disbursed) : '—'}
+                      </p>
+                      {/* Total */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--fg-0)', textAlign: 'right' }}>
+                        {formatCurrency(total)}
+                      </p>
+                    </div>
+
+                    {/* Stacked progress bar */}
+                    <div style={{ padding: '0 20px 10px', display: 'flex', gap: 2 }}>
+                      <div style={{ flex: 1, height: 4, background: 'var(--bg-3)', borderRadius: 99, overflow: 'hidden', display: 'flex' }}>
+                        {/* disbursed segment */}
+                        {c.disbursed > 0 && (
+                          <div style={{ width: `${(c.disbursed / maxTotal) * 100}%`, background: 'var(--emerald)', height: '100%', transition: 'width 0.4s' }} title={`Cair: ${formatCurrency(c.disbursed)}`} />
+                        )}
+                        {/* approved segment */}
+                        {c.approved > 0 && (
+                          <div style={{ width: `${(c.approved / maxTotal) * 100}%`, background: 'var(--kamel-blue)', height: '100%', transition: 'width 0.4s' }} title={`Approved: ${formatCurrency(c.approved)}`} />
+                        )}
+                        {/* projected segment */}
+                        {c.projected > 0 && (
+                          <div style={{ width: `${(c.projected / maxTotal) * 100}%`, background: 'var(--amber)', height: '100%', opacity: 0.6, transition: 'width 0.4s' }} title={`Projected: ${formatCurrency(c.projected)}`} />
+                        )}
+                      </div>
+                      <p style={{ margin: 0, fontSize: 10, color: 'var(--fg-4)', whiteSpace: 'nowrap', alignSelf: 'center' }}>
+                        {Math.round(barPct)}%
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Footer totals */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px 140px 140px', gap: 0, padding: '12px 20px', background: 'var(--bg-2)', borderTop: '2px solid var(--border-1)' }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--amber)', textAlign: 'right' }}>{formatCurrency(totalProjected)}</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--kamel-blue)', textAlign: 'right' }}>{formatCurrency(totalApproved)}</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--emerald)', textAlign: 'right' }}>{formatCurrency(totalDisbursed)}</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--fg-0)', textAlign: 'right' }}>{formatCurrency(totalProjected + totalApproved + totalDisbursed)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: 20, marginTop: 14, padding: '0 4px' }}>
+            {[
+              { color: 'var(--amber)', label: 'Projected — pending proposals belum diputuskan' },
+              { color: 'var(--kamel-blue)', label: 'Approved — bid diterima, pekerjaan berjalan' },
+              { color: 'var(--emerald)', label: 'Disbursed — sudah cair via reward ledger' },
+            ].map(l => (
+              <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 99, background: l.color, flexShrink: 0 }} />
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-3)' }}>{l.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
