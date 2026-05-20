@@ -1,15 +1,15 @@
 const BASE = '/api/dmms';
 
 function getToken(): string | null {
-  return sessionStorage.getItem('dmms_token');
+  return localStorage.getItem('dmms_token');
 }
 
 export function setToken(token: string): void {
-  sessionStorage.setItem('dmms_token', token);
+  localStorage.setItem('dmms_token', token);
 }
 
 export function clearToken(): void {
-  sessionStorage.removeItem('dmms_token');
+  localStorage.removeItem('dmms_token');
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
