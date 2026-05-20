@@ -105,6 +105,11 @@ func (s *DeliverableService) AcceptProposal(proposalID string, pmID string) erro
 		if proposal.BidAmount > deliverable.MaxBudget {
 			return fmt.Errorf("bid exceeds max budget")
 		}
+		if hasActive, err := txDeliv.HasActiveChild(deliverable.ID); err != nil {
+			return fmt.Errorf("failed to check sub-deliverables: %w", err)
+		} else if hasActive {
+			return fmt.Errorf("cannot accept proposal: one or more sub-deliverables already have an accepted proposal")
+		}
 
 		// Assign deliverable
 		if err := txDeliv.Assign(deliverable.ID, proposal.ContributorID, proposal.BidAmount); err != nil {
@@ -195,6 +200,12 @@ func (s *DeliverableService) ApproveSubmission(submissionID, reviewerID string, 
 		deliverable, err := txDeliv.FindByID(sub.DeliverableID)
 		if err != nil {
 			return err
+		}
+
+		if hasActive, err := txDeliv.HasActiveChild(deliverable.ID); err != nil {
+			return fmt.Errorf("failed to check sub-deliverables: %w", err)
+		} else if hasActive {
+			return fmt.Errorf("cannot approve: one or more sub-deliverables already have an accepted proposal")
 		}
 
 		// Mark deliverable approved

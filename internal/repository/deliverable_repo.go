@@ -124,6 +124,22 @@ func (r *DeliverableRepo) GetAllDescendantIDs(id string) ([]string, error) {
 	return ids, err
 }
 
+// HasActiveChild checks if any direct or indirect child has an accepted proposal
+// (status assigned, in_progress, submitted, or approved), meaning the child is
+// already being worked on and the parent cannot be taken as a whole.
+func (r *DeliverableRepo) HasActiveChild(id string) (bool, error) {
+	var count int64
+	err := r.db.Raw(`
+		WITH RECURSIVE descendants AS (
+			SELECT id FROM dmms_deliverables WHERE parent_id=?
+			UNION ALL
+			SELECT d.id FROM dmms_deliverables d JOIN descendants anc ON d.parent_id=anc.id
+		) SELECT COUNT(*) FROM descendants desc_ids
+		  JOIN dmms_deliverables d ON d.id=desc_ids.id
+		  WHERE d.status IN ('assigned','in_progress','submitted','approved')`, id).Scan(&count).Error
+	return count > 0, err
+}
+
 // HasAssignedDescendant checks if any descendant is assigned.
 func (r *DeliverableRepo) HasAssignedDescendant(id string) (bool, error) {
 	var count int64

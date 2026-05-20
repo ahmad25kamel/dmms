@@ -85,6 +85,13 @@ func (h *ProposalHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		Err(w, http.StatusForbidden, "PM cannot submit a proposal on their own project's deliverable")
 		return
 	}
+	if hasActive, err := h.deliverables.HasActiveChild(deliverableID); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to check sub-deliverables")
+		return
+	} else if hasActive {
+		Err(w, http.StatusConflict, "cannot bid on this deliverable: one or more sub-deliverables already have an accepted proposal")
+		return
+	}
 
 	var body struct {
 		BidAmount float64  `json:"bid_amount"`

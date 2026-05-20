@@ -210,7 +210,7 @@ function MarketplaceNode({ deliverable: d, depth, userRole, onOpenDetail, onBidS
 
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <Button size="sm" variant="secondary" onClick={() => onOpenDetail(d)}>Details</Button>
-          {userRole === 'contributor' && <BidButton deliverable={d} onBidSubmitted={onBidSubmitted} />}
+          {userRole === 'contributor' && !hasChildren && <BidButton deliverable={d} onBidSubmitted={onBidSubmitted} />}
         </div>
       </div>
 
