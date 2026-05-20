@@ -2,6 +2,7 @@ import { api } from './client';
 import type {
   User, Project, Deliverable, Task,
   Proposal, Submission, RewardLedgerEntry, KanbanTask, KanbanComment, AuditLog,
+  SubmissionArtifact,
 } from '../types';
 
 // Auth
@@ -153,4 +154,21 @@ export const auditApi = {
     if (params?.user_id) q.set('user_id', params.user_id);
     return api.get<{ items: AuditLog[]; total: number; limit: number; offset: number }>(`/admin/audit?${q}`);
   },
+};
+
+// Submission Artifacts
+export const artifactsApi = {
+  list: (deliverableId: string) =>
+    api.get<SubmissionArtifact[]>(`/deliverables/${deliverableId}/artifacts`),
+  addLink: (deliverableId: string, body: { url: string; label?: string; task_id?: string }) =>
+    api.post<SubmissionArtifact>(`/deliverables/${deliverableId}/artifacts`, { kind: 'link', ...body }),
+  uploadFile: (deliverableId: string, file: File, label?: string, taskId?: string) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (label) fd.append('label', label);
+    if (taskId) fd.append('task_id', taskId);
+    return api.uploadForm<SubmissionArtifact>(`/deliverables/${deliverableId}/artifacts/file`, fd);
+  },
+  delete: (deliverableId: string, artifactId: string) =>
+    api.delete<{ deleted: boolean }>(`/deliverables/${deliverableId}/artifacts/${artifactId}`),
 };

@@ -3,6 +3,7 @@ import { submissionsApi, deliverablesApi } from '../../api';
 import type { Submission } from '../../types';
 import { Badge, Button, Textarea, Modal, FormField, Spinner, EmptyState } from '../../components/ui';
 import { formatDate, submissionStatusColor } from '../../lib/statusColors';
+import { ArtifactPanel } from '../../components/artifacts/ArtifactPanel';
 
 export function ReviewCenterPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -119,6 +120,11 @@ export function ReviewCenterPage() {
                 })()}
               </div>
             )}
+            <ArtifactPanel
+              deliverableId={selected.deliverable_id}
+              tasks={[]}
+              readOnly
+            />
             <FormField label="Review Notes (optional)">
               <Textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} placeholder="Feedback for the contributor…" />
             </FormField>

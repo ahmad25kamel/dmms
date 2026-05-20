@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { deliverablesApi } from '../../api';
-import type { Deliverable, Task, Submission } from '../../types';
+import { deliverablesApi, artifactsApi } from '../../api';
+import type { Deliverable, Task, Submission, SubmissionArtifact } from '../../types';
 import { Badge, Button, Input, Textarea, FormField, Spinner, Modal } from '../../components/ui';
 import { formatCurrency, formatDate, deliverableStatusColor, deliverableStatusLabel } from '../../lib/statusColors';
+import { ArtifactPanel } from '../../components/artifacts/ArtifactPanel';
 
 interface DeliverableWithTasks extends Deliverable {
   tasks: Task[];
@@ -18,6 +19,7 @@ export function WorkspacePage() {
   const [rootTasks, setRootTasks] = useState<Task[]>([]);
   const [rootHistory, setRootHistory] = useState<Submission[]>([]);
   const [subtasks, setSubtasks] = useState<Task[]>([]);
+  const [artifacts, setArtifacts] = useState<SubmissionArtifact[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitTarget, setSubmitTarget] = useState<{ id: string; title: string; tasks: Task[] } | null>(null);
 
@@ -34,17 +36,19 @@ export function WorkspacePage() {
   async function load() {
     if (!id) return;
     try {
-      const [d, tasks, subs, history, kids] = await Promise.all([
+      const [d, tasks, subs, history, kids, arts] = await Promise.all([
         deliverablesApi.get(id),
         deliverablesApi.listTasks(id),
         deliverablesApi.listSubtasks(id),
         deliverablesApi.listHistory(id).catch(() => [] as Submission[]),
         deliverablesApi.listChildren(id).catch(() => [] as Deliverable[]),
+        artifactsApi.list(id).catch(() => [] as SubmissionArtifact[]),
       ]);
       setRoot(d);
       setRootTasks(tasks);
       setSubtasks(subs);
       setRootHistory(history);
+      setArtifacts(arts);
       const enriched = await Promise.all(kids.map(k => enrichDeliverable(k)));
       setChildren(enriched);
     } finally {
@@ -173,6 +177,13 @@ export function WorkspacePage() {
         <AddSubtaskInput onAdd={addSubtask} />
       </section>
 
+      {/* Submission Artifacts */}
+      <ArtifactPanel
+        deliverableId={id!}
+        tasks={rootTasks}
+        onArtifactsChange={setArtifacts}
+      />
+
       {/* Submission history + submit action */}
       {rootHistory.length > 0 && (
         <section style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', padding: '14px 18px', marginBottom: 16 }}>
@@ -209,6 +220,7 @@ export function WorkspacePage() {
           deliverableId={submitTarget.id}
           title={submitTarget.title}
           tasks={submitTarget.tasks}
+          artifacts={artifacts}
           onClose={() => setSubmitTarget(null)}
           onSubmitted={(s) => onSubmitted(s, submitTarget.id)}
         />
@@ -402,11 +414,13 @@ function AddSubtaskInput({ onAdd }: { onAdd: (title: string) => void }) {
   );
 }
 
-function SubmitModal({ deliverableId, title, tasks, onClose, onSubmitted }: {
-  deliverableId: string; title: string; tasks: Task[]; onClose: () => void; onSubmitted: (s: Submission) => void;
+function SubmitModal({ deliverableId, title, tasks, artifacts, onClose, onSubmitted }: {
+  deliverableId: string; title: string; tasks: Task[]; artifacts: SubmissionArtifact[]; onClose: () => void; onSubmitted: (s: Submission) => void;
 }) {
+  const linkArtifacts = artifacts.filter(a => a.kind === 'link');
+  const fileArtifacts = artifacts.filter(a => a.kind === 'file');
   const [notes, setNotes] = useState('');
-  const [prLinks, setPrLinks] = useState('');
+  const [prLinks, setPrLinks] = useState(() => linkArtifacts.map(a => a.url).join('\n'));
   const [checklist, setChecklist] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(tasks.map(t => [t.id, t.status === 'done']))
   );
@@ -425,7 +439,7 @@ function SubmitModal({ deliverableId, title, tasks, onClose, onSubmitted }: {
         notes,
         checklist_completion: JSON.stringify(checklist),
         pr_links: JSON.stringify(prArray),
-        file_uploads: '[]',
+        file_uploads: JSON.stringify(fileArtifacts.map(a => a.url)),
       });
       onSubmitted(s);
     } catch (err: any) {
@@ -480,8 +494,19 @@ function SubmitModal({ deliverableId, title, tasks, onClose, onSubmitted }: {
           <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Describe what you've done and any important notes…" required />
         </FormField>
         <FormField label="PR / Link References (one per line)">
-          <Textarea value={prLinks} onChange={e => setPrLinks(e.target.value)} rows={2} placeholder="https://github.com/…" />
+          {linkArtifacts.length > 0 && (
+            <p style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 4 }}>
+              {linkArtifacts.length} link{linkArtifacts.length > 1 ? 's' : ''} pre-loaded from artifacts — edit as needed
+            </p>
+          )}
+          <Textarea value={prLinks} onChange={e => setPrLinks(e.target.value)} rows={3} placeholder="https://github.com/…" />
         </FormField>
+        {fileArtifacts.length > 0 && (
+          <div style={{ fontSize: 12, color: 'var(--fg-3)', background: 'var(--bg-1)', borderRadius: 6, padding: '8px 12px' }}>
+            {fileArtifacts.length} file{fileArtifacts.length > 1 ? 's' : ''} from artifacts will be included:{' '}
+            {fileArtifacts.map(a => a.label || a.url.split('/').pop()).join(', ')}
+          </div>
+        )}
       </form>
     </Modal>
   );

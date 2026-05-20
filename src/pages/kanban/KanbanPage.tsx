@@ -4,6 +4,7 @@ import type { KanbanTask, KanbanComment, Project, User, Deliverable } from '../.
 import { Button, Modal, FormField, Input, Select, Spinner, Alert, MentionsTextarea } from '../../components/ui';
 import { formatDate } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
+import { AddToSubmissionButton } from '../../components/artifacts/AddToSubmissionButton';
 
 type KanbanStatus = 'backlog' | 'todo' | 'in_progress' | 'done';
 
@@ -749,6 +750,9 @@ function KanbanCard({ task: t, onSelect }: {
   task: KanbanTask;
   onSelect: (t: KanbanTask) => void;
 }) {
+  const { user } = useAuth();
+  const isContributor = user?.role === 'contributor';
+  const showArtifactBtn = isContributor && (t.status === 'done' || t.status === 'in_progress') && !!t.deliverable_id;
   // Effective deadline: task's own due_date, falling back to deliverable's due_date
   const effectiveDue = t.due_date || t.deliverable_due_date;
   const isFromDeliverable = !t.due_date && !!t.deliverable_due_date;
@@ -847,6 +851,11 @@ function KanbanCard({ task: t, onSelect }: {
           )}
         </div>
       </div>
+      {showArtifactBtn && (
+        <div style={{ marginTop: 8, borderTop: '1px solid var(--border-1)', paddingTop: 8 }} onClick={e => e.stopPropagation()}>
+          <AddToSubmissionButton task={t} />
+        </div>
+      )}
     </div>
   );
 }

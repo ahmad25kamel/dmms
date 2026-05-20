@@ -279,3 +279,24 @@ type AuditLog struct {
 }
 
 func (AuditLog) TableName() string { return "dmms_audit_logs" }
+
+type ArtifactKind string
+
+const (
+	ArtifactLink ArtifactKind = "link"
+	ArtifactFile ArtifactKind = "file"
+)
+
+type SubmissionArtifact struct {
+	ID            string       `json:"id" gorm:"primaryKey;size:191"`
+	DeliverableID string       `json:"deliverable_id" gorm:"column:deliverable_id;not null;size:191;index"`
+	ContributorID string       `json:"contributor_id" gorm:"column:contributor_id;not null;size:191"`
+	TaskID        *string      `json:"task_id" gorm:"column:task_id;size:191"`
+	Kind          ArtifactKind `json:"kind" gorm:"not null;size:10"`
+	URL           string       `json:"url" gorm:"not null;type:text"`
+	Label         string       `json:"label" gorm:"size:500"`
+	TaskTitle     string       `json:"task_title,omitempty" gorm:"->"`
+	CreatedAt     time.Time    `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
+}
+
+func (SubmissionArtifact) TableName() string { return "dmms_submission_artifacts" }

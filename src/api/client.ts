@@ -46,4 +46,6 @@ export const api = {
     fd.append('file', file);
     return request<T>(path, { method: 'POST', body: fd, headers: { 'Content-Type': '' } as any });
   },
+  uploadForm: <T>(path: string, fd: FormData) =>
+    request<T>(path, { method: 'POST', body: fd, headers: { 'Content-Type': '' } as any }),
 };

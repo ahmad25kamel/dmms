@@ -185,3 +185,17 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
+
+export type ArtifactKind = 'link' | 'file';
+
+export interface SubmissionArtifact {
+  id: string;
+  deliverable_id: string;
+  contributor_id: string;
+  task_id: string | null;
+  kind: ArtifactKind;
+  url: string;
+  label: string;
+  task_title?: string;
+  created_at: string;
+}

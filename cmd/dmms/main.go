@@ -33,6 +33,7 @@ func main() {
 	kanbanRepo := repository.NewKanbanRepo(db)
 	proposalRepo := repository.NewProposalRepo(db)
 	submissionRepo := repository.NewSubmissionRepo(db)
+	artifactRepo := repository.NewSubmissionArtifactRepo(db)
 	rewardRepo := repository.NewRewardRepo(db)
 	notifRepo := repository.NewNotificationRepo(db)
 	auditRepo := repository.NewAuditRepo(db)
@@ -52,6 +53,7 @@ func main() {
 	adminH := handlers.NewAdminHandler(userRepo, auditRepo)
 	auditH := handlers.NewAuditHandler(auditRepo)
 	kanbanH := handlers.NewKanbanHandler(taskRepo, kanbanRepo, userRepo, notifRepo, deliverableRepo)
+	artifactH := handlers.NewArtifactHandler(artifactRepo, deliverableRepo)
 
 	// Auth middleware
 	authMW := middleware.Auth(authSvc)
@@ -117,6 +119,12 @@ func main() {
 	mux.Handle("POST /api/dmms/deliverables/{id}/submissions", authMW(http.HandlerFunc(submissionH.Submit)))
 	mux.Handle("GET /api/dmms/deliverables/{id}/submission", authMW(http.HandlerFunc(submissionH.GetByDeliverable)))
 	mux.Handle("GET /api/dmms/deliverables/{id}/submissions", authMW(http.HandlerFunc(submissionH.ListHistory)))
+
+	// Submission Artifacts
+	mux.Handle("GET /api/dmms/deliverables/{id}/artifacts", authMW(http.HandlerFunc(artifactH.List)))
+	mux.Handle("POST /api/dmms/deliverables/{id}/artifacts/file", authMW(http.HandlerFunc(artifactH.UploadFile)))
+	mux.Handle("POST /api/dmms/deliverables/{id}/artifacts", authMW(http.HandlerFunc(artifactH.AddLink)))
+	mux.Handle("DELETE /api/dmms/deliverables/{id}/artifacts/{artifactId}", authMW(http.HandlerFunc(artifactH.Delete)))
 
 	// Review (PM)
 	mux.Handle("GET /api/dmms/submissions/pending", authMW(pmOnly(http.HandlerFunc(submissionH.PendingForPM))))
