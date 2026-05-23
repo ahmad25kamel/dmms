@@ -100,7 +100,7 @@ export const budgetApi = {
 
 // Kanban
 export const kanbanApi = {
-  list: (params?: { project_id?: string; deliverable_id?: string; assigned_to?: string; status?: string; hide_archived?: boolean; limit?: number; offset?: number }) => {
+  list: (params?: { project_id?: string; deliverable_id?: string; assigned_to?: string; status?: string; hide_archived?: boolean; limit?: number; offset?: number; from_date?: string; to_date?: string }) => {
     const q = new URLSearchParams();
     if (params?.project_id) q.set('project_id', params.project_id);
     if (params?.deliverable_id) q.set('deliverable_id', params.deliverable_id);
@@ -109,10 +109,12 @@ export const kanbanApi = {
     if (params?.hide_archived) q.set('hide_archived', 'true');
     if (params?.limit) q.set('limit', params.limit.toString());
     if (params?.offset) q.set('offset', params.offset.toString());
+    if (params?.from_date) q.set('from_date', params.from_date);
+    if (params?.to_date) q.set('to_date', params.to_date);
     const qs = q.toString();
     return api.get<{ items: KanbanTask[]; total: number }>(`/kanban${qs ? '?' + qs : ''}`);
   },
-  mine: (params?: { project_id?: string; deliverable_id?: string; status?: string; hide_archived?: boolean; limit?: number; offset?: number }) => {
+  mine: (params?: { project_id?: string; deliverable_id?: string; status?: string; hide_archived?: boolean; limit?: number; offset?: number; from_date?: string; to_date?: string }) => {
     const q = new URLSearchParams();
     if (params?.project_id) q.set('project_id', params.project_id);
     if (params?.deliverable_id) q.set('deliverable_id', params.deliverable_id);
@@ -120,6 +122,8 @@ export const kanbanApi = {
     if (params?.hide_archived) q.set('hide_archived', 'true');
     if (params?.limit) q.set('limit', params.limit.toString());
     if (params?.offset) q.set('offset', params.offset.toString());
+    if (params?.from_date) q.set('from_date', params.from_date);
+    if (params?.to_date) q.set('to_date', params.to_date);
     const qs = q.toString();
     return api.get<{ items: KanbanTask[]; total: number }>(`/kanban/mine${qs ? '?' + qs : ''}`);
   },

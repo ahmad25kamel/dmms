@@ -47,6 +47,8 @@ func (h *KanbanHandler) List(w http.ResponseWriter, r *http.Request) {
 		AssignedTo:    q.Get("assigned_to"),
 		Status:        q.Get("status"),
 		HideArchived:  q.Get("hide_archived") == "true",
+		FromDate:      q.Get("from_date"),
+		ToDate:        q.Get("to_date"),
 	}
 
 	tasks, err := h.tasks.ListFiltered(f, limit, offset)
@@ -73,6 +75,8 @@ func (h *KanbanHandler) Mine(w http.ResponseWriter, r *http.Request) {
 		DeliverableID: q.Get("deliverable_id"),
 		Status:        q.Get("status"),
 		HideArchived:  q.Get("hide_archived") == "true",
+		FromDate:      q.Get("from_date"),
+		ToDate:        q.Get("to_date"),
 	}
 
 	tasks, err := h.tasks.ListForContributorFiltered(userID, f, limit, offset)
