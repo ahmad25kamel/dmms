@@ -5,6 +5,7 @@ import { Button, Modal, FormField, Input, Select, Spinner, Alert, MentionsTextar
 import { formatDate } from '../../lib/statusColors';
 import { useAuth } from '../../store/authStore';
 import { AddToSubmissionButton } from '../../components/artifacts/AddToSubmissionButton';
+import { CalendarView } from './CalendarView';
 
 type KanbanStatus = 'backlog' | 'todo' | 'in_progress' | 'done';
 
@@ -281,6 +282,7 @@ export function KanbanPage() {
 // ── PM View ──────────────────────────────────────────────────────────────────
 
 function PMKanban() {
+  const [viewMode, setViewMode] = useState<'board' | 'calendar'>('board');
   const [tasksMap, setTasksMap] = useState<Record<KanbanStatus, KanbanTask[]>>({
     backlog: [], todo: [], in_progress: [], done: []
   });
@@ -295,6 +297,7 @@ function PMKanban() {
   const [filterContributor, setFilterContributor] = useState('');
   const [hideArchived, setHideArchived] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [createDate, setCreateDate] = useState('');
   const [selected, setSelected] = useState<KanbanTask | null>(null);
   const [resetKey, setResetKey] = useState(0);
 
@@ -362,9 +365,50 @@ function PMKanban() {
   return (
     <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', gap: 0, padding: '12px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0, marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <h1 style={{ margin: 0, font: '600 17px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>Kanban Board</h1>
-          <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>Monitor all task progress across projects</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <h1 style={{ margin: 0, font: '600 17px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>
+              {viewMode === 'board' ? 'Kanban Board' : 'Calendar View'}
+            </h1>
+            <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>
+              {viewMode === 'board' ? 'Monitor all task progress across projects' : 'Tasks visualized by due date'}
+            </span>
+          </div>
+          {/* View toggle */}
+          <div style={{
+            display: 'flex', borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-1)', overflow: 'hidden',
+          }}>
+            <button
+              onClick={() => setViewMode('board')}
+              title="Board view"
+              style={{
+                width: 30, height: 28, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: viewMode === 'board' ? 'var(--kamel-blue-soft)' : 'var(--bg-1)',
+                color: viewMode === 'board' ? 'var(--kamel-blue)' : 'var(--fg-3)',
+                borderRight: '1px solid var(--border-1)',
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              title="Calendar view"
+              style={{
+                width: 30, height: 28, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: viewMode === 'calendar' ? 'var(--kamel-blue-soft)' : 'var(--bg-1)',
+                color: viewMode === 'calendar' ? 'var(--kamel-blue)' : 'var(--fg-3)',
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <FilterBar
@@ -375,25 +419,40 @@ function PMKanban() {
             contributors={users.filter(u => u.role === 'contributor')}
             showContributor
           />
-          <Button onClick={() => setShowCreate(true)} size="sm">
+          <Button onClick={() => { setCreateDate(''); setShowCreate(true); }} size="sm">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Task
           </Button>
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
-        <KanbanBoard tasksMap={tasksMap} totalCounts={totalCounts} resetKey={resetKey} onMove={moveTask} onSelect={setSelected} onLoadMore={loadMore} />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowX: viewMode === 'board' ? 'auto' : 'hidden', overflowY: 'hidden' }}>
+        {viewMode === 'board' ? (
+          <KanbanBoard tasksMap={tasksMap} totalCounts={totalCounts} resetKey={resetKey} onMove={moveTask} onSelect={setSelected} onLoadMore={loadMore} />
+        ) : (
+          <CalendarView
+            mineOnly={false}
+            filterProject={filterProject}
+            filterDeliverable={filterDeliverable}
+            filterContributor={filterContributor}
+            hideArchived={hideArchived}
+            canCreate
+            onSelectTask={setSelected}
+            onCreateAtDate={(date) => { setCreateDate(date); setShowCreate(true); }}
+          />
+        )}
       </div>
 
       {showCreate && (
         <CreateTaskModal
           projects={projects}
           users={users}
-          onClose={() => setShowCreate(false)}
+          initialDueDate={createDate}
+          onClose={() => { setShowCreate(false); setCreateDate(''); }}
           onCreate={(t) => {
             setTasksMap(prev => ({ ...prev, [t.status]: [t, ...prev[t.status]] }));
             setShowCreate(false);
+            setCreateDate('');
           }}
         />
       )}
@@ -436,6 +495,7 @@ function PMKanban() {
 
 function ContributorKanban() {
   const { user } = useAuth();
+  const [viewMode, setViewMode] = useState<'board' | 'calendar'>('board');
   const [tasksMap, setTasksMap] = useState<Record<KanbanStatus, KanbanTask[]>>({
     backlog: [], todo: [], in_progress: [], done: []
   });
@@ -450,6 +510,7 @@ function ContributorKanban() {
   const [hideArchived, setHideArchived] = useState(true);
   const [selected, setSelected] = useState<KanbanTask | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [createDate, setCreateDate] = useState('');
   const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
@@ -533,9 +594,50 @@ function ContributorKanban() {
   return (
     <div className="dmms-page" style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', gap: 0, padding: '12px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0, marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <h1 style={{ margin: 0, font: '600 17px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>My Task Board</h1>
-          <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>Your personal kanban — tasks across all assigned deliverables</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <h1 style={{ margin: 0, font: '600 17px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>
+              {viewMode === 'board' ? 'My Task Board' : 'My Calendar'}
+            </h1>
+            <span style={{ font: '400 12px/1 var(--font-sans)', color: 'var(--fg-3)' }}>
+              {viewMode === 'board' ? 'Your personal kanban — tasks across all assigned deliverables' : 'Your tasks visualized by due date'}
+            </span>
+          </div>
+          {/* View toggle */}
+          <div style={{
+            display: 'flex', borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-1)', overflow: 'hidden',
+          }}>
+            <button
+              onClick={() => setViewMode('board')}
+              title="Board view"
+              style={{
+                width: 30, height: 28, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: viewMode === 'board' ? 'var(--kamel-blue-soft)' : 'var(--bg-1)',
+                color: viewMode === 'board' ? 'var(--kamel-blue)' : 'var(--fg-3)',
+                borderRight: '1px solid var(--border-1)',
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              title="Calendar view"
+              style={{
+                width: 30, height: 28, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: viewMode === 'calendar' ? 'var(--kamel-blue-soft)' : 'var(--bg-1)',
+                color: viewMode === 'calendar' ? 'var(--kamel-blue)' : 'var(--fg-3)',
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <FilterBar
@@ -544,15 +646,26 @@ function ContributorKanban() {
             projects={myProjects}
             deliverableNodes={deliverableNodes}
           />
-          <Button onClick={() => setShowCreate(true)} size="sm">
+          <Button onClick={() => { setCreateDate(''); setShowCreate(true); }} size="sm">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Task
           </Button>
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
-        <KanbanBoard tasksMap={tasksMap} totalCounts={totalCounts} resetKey={resetKey} onMove={moveTask} onSelect={setSelected} onLoadMore={loadMore} />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowX: viewMode === 'board' ? 'auto' : 'hidden', overflowY: 'hidden' }}>
+        {viewMode === 'board' ? (
+          <KanbanBoard tasksMap={tasksMap} totalCounts={totalCounts} resetKey={resetKey} onMove={moveTask} onSelect={setSelected} onLoadMore={loadMore} />
+        ) : (
+          <CalendarView
+            mineOnly
+            filterProject={filterProject}
+            filterDeliverable={filterDeliverable}
+            hideArchived={hideArchived}
+            canCreate={false}
+            onSelectTask={setSelected}
+          />
+        )}
       </div>
 
       {showCreate && (
@@ -560,10 +673,12 @@ function ContributorKanban() {
           projects={myProjects.map(p => ({ id: p.id, name: p.name } as unknown as Project))}
           assignedTo={user.id}
           users={users}
-          onClose={() => setShowCreate(false)}
+          initialDueDate={createDate}
+          onClose={() => { setShowCreate(false); setCreateDate(''); }}
           onCreate={(t) => {
             setTasksMap(prev => ({ ...prev, [t.status]: [t, ...prev[t.status]] }));
             setShowCreate(false);
+            setCreateDate('');
           }}
         />
       )}
@@ -1394,17 +1509,18 @@ function EditTaskForm({ task, users, onSaved, onCancel }: {
 
 // ── Create Task Modal ─────────────────────────────────────────────────────────
 
-function CreateTaskModal({ projects, users, assignedTo, onClose, onCreate }: {
+function CreateTaskModal({ projects, users, assignedTo, initialDueDate, onClose, onCreate }: {
   projects: Project[];
   users: User[];
   assignedTo?: string;
+  initialDueDate?: string;
   onClose: () => void;
   onCreate: (t: KanbanTask) => void;
 }) {
   const [projectId, setProjectId] = useState('');
   const [deliverables, setDeliverables] = useState<{ id: string; title: string }[]>([]);
   const [deliverableId, setDeliverableId] = useState('');
-  const [form, setForm] = useState({ title: '', description: '', status: 'backlog', due_date: '' });
+  const [form, setForm] = useState({ title: '', description: '', status: 'backlog', due_date: initialDueDate ?? '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
