@@ -132,6 +132,8 @@ export interface Proposal {
   parent_deliverable_title?: string;
   grandparent_deliverable_title?: string;
   project_name?: string;
+  deliverable_start_date?: string;
+  deliverable_due_date?: string;
 }
 
 export type SubmissionStatus = 'pending' | 'approved' | 'revision_requested' | 'rejected';
