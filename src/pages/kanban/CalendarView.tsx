@@ -67,10 +67,107 @@ function TaskPill({ task, isFallback, onClick }: { task: KanbanTask; isFallback:
   );
 }
 
+// ── Day tasks modal ───────────────────────────────────────────────────────────
+
+const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function DayTasksModal({ date, tasks, fallbackIds, onSelectTask, onClose }: {
+  date: Date;
+  tasks: KanbanTask[];
+  fallbackIds: Set<string>;
+  onSelectTask: (t: KanbanTask) => void;
+  onClose: () => void;
+}) {
+  const label = `${DAY_FULL[date.getDay()]}, ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--bg-1)',
+          border: '1px solid var(--border-1)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          width: 340, maxHeight: '70vh',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--border-1)',
+          background: 'var(--bg-2)',
+          flexShrink: 0,
+        }}>
+          <span style={{ font: '600 13px/1.2 var(--font-sans)', color: 'var(--fg-0)' }}>{label}</span>
+          <span style={{ font: '400 11px/1 var(--font-sans)', color: 'var(--fg-3)' }}>
+            {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        {/* Task list */}
+        <div style={{ overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {tasks.map(t => {
+            const s = STATUS_STYLE[t.status] ?? STATUS_STYLE.backlog;
+            const isFallback = fallbackIds.has(t.id);
+            const effectiveDue = t.due_date || t.deliverable_due_date;
+            const isOverdue = effectiveDue && new Date(effectiveDue) < new Date() && t.status !== 'done';
+            return (
+              <button
+                key={t.id}
+                onClick={() => { onClose(); onSelectTask(t); }}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
+                  width: '100%', textAlign: 'left', cursor: 'pointer',
+                  padding: '8px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: isOverdue ? '#FEE2E2' : s.bg,
+                  border: `1px ${isFallback ? 'dashed' : 'solid'} ${isOverdue ? '#FECACA' : s.border}`,
+                  color: isOverdue ? '#991B1B' : s.text,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    font: '500 12px/1.4 var(--font-sans)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {t.title}
+                  </div>
+                  {t.deliverable_title && (
+                    <div style={{ font: '400 11px/1.3 var(--font-sans)', opacity: 0.7, marginTop: 2 }}>
+                      {t.deliverable_title}{isFallback ? ' (deliverable date)' : ''}
+                    </div>
+                  )}
+                </div>
+                <span style={{
+                  font: '500 10px/1 var(--font-sans)',
+                  padding: '2px 6px', borderRadius: 'var(--radius-pill)',
+                  background: 'rgba(0,0,0,0.06)', flexShrink: 0, marginTop: 2,
+                }}>
+                  {STATUS_LABELS[t.status] ?? t.status}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Calendar cell ─────────────────────────────────────────────────────────────
 
 function CalendarCell({
-  date, isCurrentMonth, isToday, tasks, fallbackIds, maxVisible, onSelectTask, onClickDate, canCreate,
+  date, isCurrentMonth, isToday, tasks, fallbackIds, maxVisible, onSelectTask, onClickDate, onShowMore, canCreate,
 }: {
   date: Date;
   isCurrentMonth: boolean;
@@ -80,10 +177,10 @@ function CalendarCell({
   maxVisible: number;
   onSelectTask: (t: KanbanTask) => void;
   onClickDate: (dateStr: string) => void;
+  onShowMore: (date: Date) => void;
   canCreate: boolean;
 }) {
-  const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? tasks : tasks.slice(0, maxVisible);
+  const visible = tasks.slice(0, maxVisible);
   const overflow = tasks.length - maxVisible;
   const dateStr = toDateKey(date);
 
@@ -120,9 +217,9 @@ function CalendarCell({
         {visible.map(t => (
           <TaskPill key={t.id} task={t} isFallback={fallbackIds.has(t.id)} onClick={() => onSelectTask(t)} />
         ))}
-        {!showAll && overflow > 0 && (
+        {overflow > 0 && (
           <button
-            onClick={(e) => { e.stopPropagation(); setShowAll(true); }}
+            onClick={(e) => { e.stopPropagation(); onShowMore(date); }}
             style={{
               display: 'block', width: '100%', padding: '2px 6px',
               border: 'none', background: 'transparent',
@@ -131,19 +228,6 @@ function CalendarCell({
             }}
           >
             +{overflow} more
-          </button>
-        )}
-        {showAll && tasks.length > maxVisible && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowAll(false); }}
-            style={{
-              display: 'block', width: '100%', padding: '2px 6px',
-              border: 'none', background: 'transparent',
-              font: '500 10px/1.4 var(--font-sans)', color: 'var(--fg-3)',
-              cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            show less
           </button>
         )}
       </div>
@@ -170,6 +254,7 @@ export function CalendarView({
 }: CalendarViewProps) {
   const [tasks, setTasks] = useState<KanbanTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dayModal, setDayModal] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -382,6 +467,7 @@ export function CalendarView({
                   maxVisible={3}
                   onSelectTask={onSelectTask}
                   onClickDate={(ds) => onCreateAtDate?.(ds)}
+                  onShowMore={(d) => setDayModal(d)}
                   canCreate={canCreate}
                 />
               </div>
@@ -389,6 +475,17 @@ export function CalendarView({
           })}
         </div>
       </div>
+
+      {/* Day tasks modal */}
+      {dayModal && (
+        <DayTasksModal
+          date={dayModal}
+          tasks={tasksByDate[toDateKey(dayModal)] ?? []}
+          fallbackIds={fallbackIds}
+          onSelectTask={onSelectTask}
+          onClose={() => setDayModal(null)}
+        />
+      )}
 
       {/* Undated tasks */}
       {undatedTasks.length > 0 && (
