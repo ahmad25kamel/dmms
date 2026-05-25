@@ -91,13 +91,12 @@ function CalendarCell({
     <div
       onClick={() => canCreate && onClickDate(dateStr)}
       style={{
-        height: '100%', padding: '6px 5px 4px',
+        height: 120, padding: '6px 5px 4px',
         background: isToday ? 'rgba(37,99,235,0.04)' : isCurrentMonth ? 'var(--bg-1)' : 'var(--bg-0)',
         cursor: canCreate ? 'pointer' : 'default',
-        position: 'relative',
-        transition: 'background 0.1s',
         overflow: 'hidden',
         boxSizing: 'border-box',
+        transition: 'background 0.1s',
       }}
       onMouseEnter={e => { if (canCreate) (e.currentTarget as HTMLDivElement).style.background = isToday ? 'rgba(37,99,235,0.07)' : 'var(--bg-2)'; }}
       onMouseLeave={e => { if (canCreate) (e.currentTarget as HTMLDivElement).style.background = isToday ? 'rgba(37,99,235,0.04)' : isCurrentMonth ? 'var(--bg-1)' : 'var(--bg-0)'; }}
@@ -238,8 +237,6 @@ export function CalendarView({
     return d >= monthStart && d <= monthEnd;
   }).length;
 
-  const weeks = grid.length / 7;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* Header */}
@@ -357,10 +354,10 @@ export function CalendarView({
 
         {/* Weeks */}
         <div style={{
-          flex: 1, minHeight: 0,
+          overflowY: 'auto',
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
-          gridTemplateRows: `repeat(${weeks}, 1fr)`,
+          gridAutoRows: '120px',
           background: 'var(--bg-0)',
         }}>
           {grid.map((date, i) => {
@@ -372,7 +369,6 @@ export function CalendarView({
               <div
                 key={i}
                 style={{
-                  height: '100%',
                   borderRight: col < 6 ? '1px solid var(--border-1)' : undefined,
                   borderBottom: i < grid.length - 7 ? '1px solid var(--border-1)' : undefined,
                 }}
