@@ -79,6 +79,8 @@ type TaskFilter struct {
 	AssignedTo    string
 	Status        string
 	HideArchived  bool
+	FromDate      string // "YYYY-MM-DD" inclusive lower bound on effective due date
+	ToDate        string // "YYYY-MM-DD" inclusive upper bound on effective due date
 }
 
 
@@ -108,6 +110,10 @@ func (r *TaskRepo) CountFiltered(f TaskFilter) (int64, error) {
 	if f.HideArchived {
 		q = q.Where("dmms_tasks.archived = false")
 	}
+	if f.FromDate != "" && f.ToDate != "" {
+		q = q.Where(`(COALESCE(dmms_tasks.due_date, Deliverable.due_date) BETWEEN ? AND ?
+			OR (dmms_tasks.due_date IS NULL AND Deliverable.due_date IS NULL))`, f.FromDate, f.ToDate)
+	}
 	return n, q.Count(&n).Error
 }
 
@@ -133,6 +139,10 @@ func (r *TaskRepo) CountForContributorFiltered(userID string, f TaskFilter) (int
 	}
 	if f.HideArchived {
 		q = q.Where("dmms_tasks.archived = false")
+	}
+	if f.FromDate != "" && f.ToDate != "" {
+		q = q.Where(`(COALESCE(dmms_tasks.due_date, Deliverable.due_date) BETWEEN ? AND ?
+			OR (dmms_tasks.due_date IS NULL AND Deliverable.due_date IS NULL))`, f.FromDate, f.ToDate)
 	}
 	return n, q.Count(&n).Error
 }
@@ -163,6 +173,10 @@ func (r *TaskRepo) ListFiltered(f TaskFilter, limit, offset int) ([]*models.Task
 	}
 	if f.HideArchived {
 		q = q.Where("dmms_tasks.archived = false")
+	}
+	if f.FromDate != "" && f.ToDate != "" {
+		q = q.Where(`(COALESCE(dmms_tasks.due_date, Deliverable.due_date) BETWEEN ? AND ?
+			OR (dmms_tasks.due_date IS NULL AND Deliverable.due_date IS NULL))`, f.FromDate, f.ToDate)
 	}
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -202,6 +216,10 @@ func (r *TaskRepo) ListForContributorFiltered(userID string, f TaskFilter, limit
 	}
 	if f.HideArchived {
 		q = q.Where("dmms_tasks.archived = false")
+	}
+	if f.FromDate != "" && f.ToDate != "" {
+		q = q.Where(`(COALESCE(dmms_tasks.due_date, Deliverable.due_date) BETWEEN ? AND ?
+			OR (dmms_tasks.due_date IS NULL AND Deliverable.due_date IS NULL))`, f.FromDate, f.ToDate)
 	}
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
