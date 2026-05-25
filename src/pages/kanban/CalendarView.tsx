@@ -332,7 +332,7 @@ export function CalendarView({
       }}>
         {/* Day headers */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+          display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
           background: 'var(--bg-2)',
           borderBottom: '1px solid var(--border-1)',
           flexShrink: 0,
@@ -356,7 +356,7 @@ export function CalendarView({
         <div style={{
           overflowY: 'auto',
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
           gridAutoRows: '120px',
           background: 'var(--bg-0)',
         }}>
