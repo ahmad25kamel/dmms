@@ -154,6 +154,10 @@ func (r *DeliverableRepo) HasAssignedDescendant(id string) (bool, error) {
 	return count > 0, err
 }
 
+func (r *DeliverableRepo) UpdateVisibility(id string, v models.Visibility) error {
+	return r.db.Model(&models.Deliverable{}).Where("id = ?", id).Update("visibility", v).Error
+}
+
 func (r *DeliverableRepo) GetAncestorIDs(id string) ([]string, error) {
 	var ids []string
 	err := r.db.Raw(`
