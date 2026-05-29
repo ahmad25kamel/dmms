@@ -303,6 +303,11 @@ func (s *DeliverableService) recomputeProjectBudget(tx *gorm.DB, projectID strin
 		if d.MaxBudget != old {
 			changed = append(changed, d)
 		}
+		// For leaf deliverables with an accepted bid, return the actual committed
+		// cost so parent/grandparent budgets shrink to reflect real spend.
+		if len(d.Children) == 0 && d.AcceptedBudget != nil {
+			return *d.AcceptedBudget
+		}
 		return d.MaxBudget
 	}
 
@@ -386,7 +391,10 @@ func (s *DeliverableService) autoHideFullyCoveredAncestors(tx *gorm.DB, parentID
 	}
 
 	for _, child := range children {
-		if child.Status == models.DelivDraft || child.Status == models.DelivOpenForBids {
+		// A child is still "open" if it has a biddable status AND has not been
+		// auto-hidden (which would mean all of its own children are covered).
+		if (child.Status == models.DelivDraft || child.Status == models.DelivOpenForBids) &&
+			child.Visibility != models.VisibilityPrivate {
 			return nil
 		}
 	}
@@ -423,6 +431,9 @@ func buildTree(flat []*models.Deliverable) []*models.Deliverable {
 				sum += calc(c)
 			}
 			d.MaxBudget = sum
+		}
+		if len(d.Children) == 0 && d.AcceptedBudget != nil {
+			return *d.AcceptedBudget
 		}
 		return d.MaxBudget
 	}
