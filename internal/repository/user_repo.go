@@ -1,11 +1,14 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 
 	"dmms/internal/models"
 	"gorm.io/gorm"
 )
+
+var ErrInvalidAPIKey = errors.New("invalid api key")
 
 type UserRepo struct {
 	db *gorm.DB
@@ -98,4 +101,25 @@ func (r *UserRepo) SetApproved(id string, approved bool) error {
 
 func (r *UserRepo) Delete(id string) error {
 	return r.db.Delete(&models.User{}, "id = ?", id).Error
+}
+
+func (r *UserRepo) SetAPIKey(id, hash, prefix string) error {
+	return r.db.Model(&models.User{}).Where("id = ?", id).
+		Updates(map[string]any{"api_key_hash": hash, "api_key_prefix": prefix}).Error
+}
+
+func (r *UserRepo) ClearAPIKey(id string) error {
+	return r.db.Model(&models.User{}).Where("id = ?", id).
+		Updates(map[string]any{"api_key_hash": "", "api_key_prefix": ""}).Error
+}
+
+func (r *UserRepo) FindByAPIKeyHash(hash string) (*models.User, error) {
+	var u models.User
+	if err := r.db.Where("api_key_hash = ? AND api_key_hash != ''", hash).First(&u).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrInvalidAPIKey
+		}
+		return nil, fmt.Errorf("find user by api key: %w", err)
+	}
+	return &u, nil
 }

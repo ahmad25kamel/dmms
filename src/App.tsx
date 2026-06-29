@@ -21,6 +21,7 @@ import { AdminPage } from './pages/admin/AdminPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { KanbanPage } from './pages/kanban/KanbanPage';
 import { TimelinePage } from './pages/timeline/TimelinePage';
+import { ApiKeyPage } from './pages/settings/ApiKeyPage';
 import { Spinner, ToastProvider } from './components/ui';
 import type { ReactNode } from 'react';
 
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route path="/timeline" element={<TimelinePage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/audit" element={<AuditPage />} />
+        <Route path="/settings/api-key" element={<ApiKeyPage />} />
       </Route>
       <Route path="/" element={<PublicLanding />} />
     </Routes>

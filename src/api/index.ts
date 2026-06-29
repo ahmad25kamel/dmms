@@ -14,6 +14,14 @@ export const authApi = {
   me: () => api.get<User>('/auth/me'),
 };
 
+export type APIKeyInfo = { has_key: false } | { has_key: true; prefix: string };
+
+export const apiKeyApi = {
+  info: () => api.get<APIKeyInfo>('/auth/api-key'),
+  generate: () => api.post<{ key: string }>('/auth/api-key'),
+  revoke: () => api.delete<{ revoked: boolean }>('/auth/api-key'),
+};
+
 export const usersApi = {
   list: (limit = 200, offset = 0) => api.get<{ items: User[]; total: number; limit: number; offset: number }>(`/users?limit=${limit}&offset=${offset}`),
 };

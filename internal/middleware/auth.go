@@ -25,6 +25,19 @@ func Auth(authSvc *service.AuthService) func(http.Handler) http.Handler {
 				return
 			}
 			tokenStr := strings.TrimPrefix(header, "Bearer ")
+
+			if strings.HasPrefix(tokenStr, "dmms_") {
+				u, err := authSvc.VerifyAPIKey(tokenStr)
+				if err != nil {
+					http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+					return
+				}
+				ctx := context.WithValue(r.Context(), ContextUserID, u.ID)
+				ctx = context.WithValue(ctx, ContextRole, u.Role)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			claims, err := authSvc.VerifyToken(tokenStr)
 			if err != nil {
 				http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)

@@ -68,6 +68,9 @@ func main() {
 	mux.Handle("POST /api/dmms/auth/register", rateLimitMW(http.HandlerFunc(authH.Register)))
 	mux.Handle("POST /api/dmms/auth/login", rateLimitMW(http.HandlerFunc(authH.Login)))
 	mux.Handle("GET /api/dmms/auth/me", authMW(http.HandlerFunc(authH.Me)))
+	mux.Handle("GET /api/dmms/auth/api-key", authMW(http.HandlerFunc(authH.GetAPIKeyInfo)))
+	mux.Handle("POST /api/dmms/auth/api-key", authMW(http.HandlerFunc(authH.GenerateAPIKey)))
+	mux.Handle("DELETE /api/dmms/auth/api-key", authMW(http.HandlerFunc(authH.RevokeAPIKey)))
 	mux.Handle("GET /api/dmms/users", authMW(http.HandlerFunc(adminH.ListUsers)))
 
 	// Projects (PM)

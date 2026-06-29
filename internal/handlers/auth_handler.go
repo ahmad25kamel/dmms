@@ -90,3 +90,39 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	JSON(w, http.StatusOK, u)
 }
+
+func (h *AuthHandler) GetAPIKeyInfo(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	u, err := h.users.FindByID(userID)
+	if err != nil {
+		Err(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if u.APIKeyPrefix == "" {
+		JSON(w, http.StatusOK, map[string]any{"has_key": false})
+		return
+	}
+	JSON(w, http.StatusOK, map[string]any{
+		"has_key": true,
+		"prefix":  u.APIKeyPrefix,
+	})
+}
+
+func (h *AuthHandler) GenerateAPIKey(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	key, err := h.auth.GenerateAPIKey(userID)
+	if err != nil {
+		Err(w, http.StatusInternalServerError, "failed to generate api key")
+		return
+	}
+	JSON(w, http.StatusOK, map[string]any{"key": key})
+}
+
+func (h *AuthHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if err := h.auth.RevokeAPIKey(userID); err != nil {
+		Err(w, http.StatusInternalServerError, "failed to revoke api key")
+		return
+	}
+	JSON(w, http.StatusOK, map[string]bool{"revoked": true})
+}

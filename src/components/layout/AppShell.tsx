@@ -78,6 +78,11 @@ const Icon = {
       <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
     </svg>
   ),
+  Key: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+    </svg>
+  ),
   Timeline: () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
@@ -102,6 +107,7 @@ const navItems: NavItem[] = [
   { to: '/budget',         label: 'Budget',         icon: <Icon.Budget />,     roles: ['pm','admin'] },
   { to: '/admin',          label: 'Users',          icon: <Icon.Users />,      roles: ['admin'] },
   { to: '/audit',          label: 'Audit Trail',    icon: <Icon.Ledger />,     roles: ['admin'] },
+  { to: '/settings/api-key', label: 'API Key',      icon: <Icon.Key />,        roles: ['pm','contributor','admin'] },
 ];
 
 // Bottom nav shows top 4 most relevant items for the role + "More" overflow

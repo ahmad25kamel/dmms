@@ -21,6 +21,8 @@ type User struct {
 	Name         string    `json:"name" gorm:"not null"`
 	Role         Role      `json:"role" gorm:"not null"`
 	Approved     bool      `json:"approved" gorm:"column:approved;not null;default:0"`
+	APIKeyHash   string    `json:"-" gorm:"column:api_key_hash;size:64"`
+	APIKeyPrefix string    `json:"-" gorm:"column:api_key_prefix;size:20"`
 	CreatedAt    time.Time `json:"created_at" gorm:"default:CURRENT_TIMESTAMP"`
 }
 

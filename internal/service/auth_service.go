@@ -1,6 +1,9 @@
 package service
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -75,6 +78,38 @@ func (s *AuthService) issueToken(u *models.User) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(s.jwtSecret)
+}
+
+func (s *AuthService) GenerateAPIKey(userID string) (string, error) {
+	raw := make([]byte, 24)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate key bytes: %w", err)
+	}
+	key := "dmms_" + hex.EncodeToString(raw)
+	hash := sha256.Sum256([]byte(key))
+	hashHex := hex.EncodeToString(hash[:])
+	prefix := key[:13] // "dmms_" + first 8 hex chars
+	if err := s.users.SetAPIKey(userID, hashHex, prefix); err != nil {
+		return "", fmt.Errorf("store api key: %w", err)
+	}
+	return key, nil
+}
+
+func (s *AuthService) RevokeAPIKey(userID string) error {
+	return s.users.ClearAPIKey(userID)
+}
+
+func (s *AuthService) VerifyAPIKey(key string) (*models.User, error) {
+	hash := sha256.Sum256([]byte(key))
+	hashHex := hex.EncodeToString(hash[:])
+	u, err := s.users.FindByAPIKeyHash(hashHex)
+	if err != nil {
+		return nil, err
+	}
+	if !u.Approved {
+		return nil, fmt.Errorf("account not approved")
+	}
+	return u, nil
 }
 
 func (s *AuthService) VerifyToken(tokenStr string) (*Claims, error) {
