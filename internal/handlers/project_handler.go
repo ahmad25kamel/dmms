@@ -24,8 +24,10 @@ func NewProjectHandler(projects *repository.ProjectRepo, audit *repository.Audit
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	role := middleware.GetRole(r)
 	userID := middleware.GetUserID(r)
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	qs := r.URL.Query()
+	limit, _ := strconv.Atoi(qs.Get("limit"))
+	offset, _ := strconv.Atoi(qs.Get("offset"))
+	status := qs.Get("status")
 	if limit <= 0 {
 		limit = 20
 	}
@@ -34,9 +36,9 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	var total int64
 	var err error
 	if role == models.RoleAdmin {
-		projects, total, err = h.projects.ListAllPaged(limit, offset)
+		projects, total, err = h.projects.ListAllPaged(limit, offset, status)
 	} else {
-		projects, total, err = h.projects.ListByPMPaged(userID, limit, offset)
+		projects, total, err = h.projects.ListByPMPaged(userID, limit, offset, status)
 	}
 	if err != nil {
 		Err(w, http.StatusInternalServerError, "failed to list projects")

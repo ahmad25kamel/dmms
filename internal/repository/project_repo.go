@@ -42,10 +42,13 @@ func (r *ProjectRepo) ListByPM(pmID string) ([]*models.Project, error) {
 	return projects, nil
 }
 
-func (r *ProjectRepo) ListByPMPaged(pmID string, limit, offset int) ([]*models.Project, int64, error) {
+func (r *ProjectRepo) ListByPMPaged(pmID string, limit, offset int, status string) ([]*models.Project, int64, error) {
 	var projects []*models.Project
 	var total int64
 	q := r.db.Model(&models.Project{}).Where("pm_id = ?", pmID)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
 	q.Count(&total)
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -64,10 +67,13 @@ func (r *ProjectRepo) ListAll() ([]*models.Project, error) {
 	return projects, nil
 }
 
-func (r *ProjectRepo) ListAllPaged(limit, offset int) ([]*models.Project, int64, error) {
+func (r *ProjectRepo) ListAllPaged(limit, offset int, status string) ([]*models.Project, int64, error) {
 	var projects []*models.Project
 	var total int64
 	q := r.db.Model(&models.Project{})
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
 	q.Count(&total)
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)

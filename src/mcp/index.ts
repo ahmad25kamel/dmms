@@ -24,6 +24,74 @@ async function api(
   return text ? JSON.parse(text) : null;
 }
 
+// Strip null/undefined/""/"{}"/"[]" values and shorten ISO timestamps to YYYY-MM-DD.
+// Keeps false/0/[] as-is. Removes verbose internal GORM-only fields.
+const SKIP_KEYS = new Set(["deleted_at", "updated_at"]);
+
+function compact(val: unknown): unknown {
+  if (val === null || val === undefined) return undefined;
+  if (typeof val === "string") {
+    if (val === "" || val === "[]" || val === "{}") return undefined;
+    // Shorten ISO timestamps to YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}T/.test(val)) return val.substring(0, 10);
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(compact).filter((v) => v !== undefined);
+  }
+  if (typeof val === "object") {
+    // Handle GORM NullTime {"Time":"...","Valid":bool}
+    const obj = val as Record<string, unknown>;
+    if ("Valid" in obj && "Time" in obj) {
+      return obj.Valid === true ? compact(obj.Time) : undefined;
+    }
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (SKIP_KEYS.has(k)) continue;
+      const cv = compact(v);
+      if (cv !== undefined) out[k] = cv;
+    }
+    return Object.keys(out).length === 0 ? undefined : out;
+  }
+  return val;
+}
+
+// For kanban tasks: add effective_due_date = task.due_date ?? deliverable_due_date
+// This gives AI agents a single reliable field for scheduling/overdue checks.
+function withEffectiveDue(data: unknown): unknown {
+  if (!data || typeof data !== "object") return data;
+  if (Array.isArray(data)) return data.map(withEffectiveDue);
+
+  const obj = data as Record<string, unknown>;
+
+  const applyToItem = (item: unknown): unknown => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    const t = item as Record<string, unknown>;
+    const effective = t.due_date ?? t.deliverable_due_date;
+    if (effective !== undefined && effective !== null && t.effective_due_date === undefined) {
+      return { ...t, effective_due_date: effective };
+    }
+    return t;
+  };
+
+  if (Array.isArray(obj.items)) {
+    return { ...obj, items: (obj.items as unknown[]).map(applyToItem) };
+  }
+  if (Array.isArray(obj.data)) {
+    return { ...obj, data: (obj.data as unknown[]).map(applyToItem) };
+  }
+  return applyToItem(obj);
+}
+
+function fmt(data: unknown): { content: Array<{ type: "text"; text: string }> } {
+  const cleaned = compact(data);
+  return { content: [{ type: "text", text: JSON.stringify(cleaned) }] };
+}
+
+function fmtKanban(data: unknown): { content: Array<{ type: "text"; text: string }> } {
+  return fmt(withEffectiveDue(data));
+}
+
 const server = new McpServer({
   name: "dmms",
   version: "1.0.0",
@@ -40,7 +108,7 @@ server.tool(
   },
   async ({ email, password }) => {
     const data = await api("POST", "/api/dmms/auth/login", { email, password });
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -50,7 +118,7 @@ server.tool(
   {},
   async () => {
     const data = await api("GET", "/api/dmms/auth/me");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -58,11 +126,22 @@ server.tool(
 
 server.tool(
   "dmms_list_projects",
-  "List all projects",
-  {},
-  async () => {
-    const data = await api("GET", "/api/dmms/projects");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  "List projects. Filterable by status. Returns {items, total, limit, offset}.",
+  {
+    status: z
+      .enum(["draft", "active", "completed", "cancelled"])
+      .optional()
+      .describe("Filter by project status"),
+    limit: z.number().int().min(1).max(100).optional().describe("Page size (default 20)"),
+    offset: z.number().int().min(0).optional().describe("Page offset"),
+  },
+  async (params) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set("status", params.status);
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset != null) qs.set("offset", String(params.offset));
+    const data = await api("GET", `/api/dmms/projects${qs.toString() ? `?${qs}` : ""}`);
+    return fmt(data);
   }
 );
 
@@ -72,7 +151,7 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("GET", `/api/dmms/projects/${id}`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -88,7 +167,7 @@ server.tool(
   },
   async (body) => {
     const data = await api("POST", "/api/dmms/projects", body);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -105,7 +184,7 @@ server.tool(
   },
   async ({ id, ...body }) => {
     const data = await api("PATCH", `/api/dmms/projects/${id}`, body);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -115,7 +194,7 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("DELETE", `/api/dmms/projects/${id}`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -123,14 +202,14 @@ server.tool(
 
 server.tool(
   "dmms_deliverable_tree",
-  "Get the full deliverable tree for a project",
+  "Get the full deliverable tree for a project (recursive parent/child structure)",
   { project_id: z.string().uuid() },
   async ({ project_id }) => {
     const data = await api(
       "GET",
       `/api/dmms/projects/${project_id}/deliverables/tree`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -140,7 +219,7 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("GET", `/api/dmms/deliverables/${id}`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -161,7 +240,7 @@ server.tool(
   },
   async (body) => {
     const data = await api("POST", "/api/dmms/deliverables", body);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -181,7 +260,7 @@ server.tool(
   },
   async ({ id, ...body }) => {
     const data = await api("PATCH", `/api/dmms/deliverables/${id}`, body);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -191,17 +270,17 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("DELETE", `/api/dmms/deliverables/${id}`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
 server.tool(
   "dmms_my_deliverables",
-  "List deliverables assigned to the current user",
+  "List deliverables assigned to the current user (contributor), ordered by due_date ascending",
   {},
   async () => {
     const data = await api("GET", "/api/dmms/deliverables/assigned");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -211,7 +290,7 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("POST", `/api/dmms/deliverables/${id}/open-bids`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -221,7 +300,7 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("POST", `/api/dmms/deliverables/${id}/cancel`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -231,28 +310,28 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("POST", `/api/dmms/deliverables/${id}/reassign`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
-// ─── TASKS ────────────────────────────────────────────────────────────────────
+// ─── TASKS (checklist) ────────────────────────────────────────────────────────
 
 server.tool(
   "dmms_list_tasks",
-  "List tasks for a deliverable",
+  "List checklist tasks for a deliverable",
   { deliverable_id: z.string().uuid() },
   async ({ deliverable_id }) => {
     const data = await api(
       "GET",
       `/api/dmms/deliverables/${deliverable_id}/tasks`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
 server.tool(
   "dmms_create_task",
-  "Create a task for a deliverable (PM/Admin only)",
+  "Create a checklist task for a deliverable (PM/Admin only)",
   {
     deliverable_id: z.string().uuid(),
     title: z.string(),
@@ -265,13 +344,13 @@ server.tool(
       `/api/dmms/deliverables/${deliverable_id}/tasks`,
       body
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
 server.tool(
   "dmms_update_task",
-  "Update a task (PM/Admin only)",
+  "Update a checklist task (PM/Admin only)",
   {
     deliverable_id: z.string().uuid(),
     task_id: z.string().uuid(),
@@ -285,13 +364,13 @@ server.tool(
       `/api/dmms/deliverables/${deliverable_id}/tasks/${task_id}`,
       body
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
 server.tool(
   "dmms_delete_task",
-  "Delete a task (PM/Admin only)",
+  "Delete a checklist task (PM/Admin only)",
   {
     deliverable_id: z.string().uuid(),
     task_id: z.string().uuid(),
@@ -301,85 +380,123 @@ server.tool(
       "DELETE",
       `/api/dmms/deliverables/${deliverable_id}/tasks/${task_id}`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
 // ─── KANBAN TASKS ─────────────────────────────────────────────────────────────
+// Each kanban task includes three date fields:
+//   due_date             — task-level due date (null if not set)
+//   deliverable_due_date — parent deliverable's due date (use as fallback reference)
+//   effective_due_date   — computed by this MCP: due_date ?? deliverable_due_date
+// Tasks are sorted: earliest effective_due_date first, then by position.
 
 server.tool(
   "dmms_list_kanban",
-  "List all kanban tasks (optionally filtered)",
+  "List all kanban tasks with optional filters. Returns {items, total}. Each task includes effective_due_date (task due_date or deliverable_due_date fallback).",
   {
     project_id: z.string().uuid().optional(),
-    status: z
-      .enum(["backlog", "todo", "in_progress", "review", "done"])
-      .optional(),
-    assignee_id: z.string().uuid().optional(),
+    deliverable_id: z.string().uuid().optional(),
+    status: z.enum(["backlog", "todo", "in_progress", "review", "done"]).optional(),
+    assignee_id: z.string().uuid().optional().describe("Filter by assigned user ID"),
+    hide_archived: z.boolean().optional().describe("Exclude archived tasks"),
+    from_date: z.string().optional().describe("YYYY-MM-DD lower bound on effective_due_date"),
+    to_date: z.string().optional().describe("YYYY-MM-DD upper bound on effective_due_date"),
+    limit: z.number().int().min(1).max(200).optional(),
+    offset: z.number().int().min(0).optional(),
   },
   async (params) => {
     const qs = new URLSearchParams();
     if (params.project_id) qs.set("project_id", params.project_id);
+    if (params.deliverable_id) qs.set("deliverable_id", params.deliverable_id);
     if (params.status) qs.set("status", params.status);
-    if (params.assignee_id) qs.set("assignee_id", params.assignee_id);
+    if (params.assignee_id) qs.set("assigned_to", params.assignee_id);
+    if (params.hide_archived) qs.set("hide_archived", "true");
+    if (params.from_date) qs.set("from_date", params.from_date);
+    if (params.to_date) qs.set("to_date", params.to_date);
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset != null) qs.set("offset", String(params.offset));
     const data = await api(
       "GET",
       `/api/dmms/kanban${qs.toString() ? `?${qs}` : ""}`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmtKanban(data);
   }
 );
 
 server.tool(
   "dmms_my_kanban",
-  "List kanban tasks assigned to the current user",
-  {},
-  async () => {
-    const data = await api("GET", "/api/dmms/kanban/mine");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  "List kanban tasks for the current user (assigned, member, or deliverable owner). Returns {items, total}. Each task includes effective_due_date.",
+  {
+    project_id: z.string().uuid().optional(),
+    deliverable_id: z.string().uuid().optional(),
+    status: z.enum(["backlog", "todo", "in_progress", "review", "done"]).optional(),
+    hide_archived: z.boolean().optional().describe("Exclude archived tasks"),
+    from_date: z.string().optional().describe("YYYY-MM-DD lower bound on effective_due_date"),
+    to_date: z.string().optional().describe("YYYY-MM-DD upper bound on effective_due_date"),
+    limit: z.number().int().min(1).max(200).optional(),
+    offset: z.number().int().min(0).optional(),
+  },
+  async (params) => {
+    const qs = new URLSearchParams();
+    if (params.project_id) qs.set("project_id", params.project_id);
+    if (params.deliverable_id) qs.set("deliverable_id", params.deliverable_id);
+    if (params.status) qs.set("status", params.status);
+    if (params.hide_archived) qs.set("hide_archived", "true");
+    if (params.from_date) qs.set("from_date", params.from_date);
+    if (params.to_date) qs.set("to_date", params.to_date);
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset != null) qs.set("offset", String(params.offset));
+    const data = await api(
+      "GET",
+      `/api/dmms/kanban/mine${qs.toString() ? `?${qs}` : ""}`
+    );
+    return fmtKanban(data);
   }
 );
 
 server.tool(
   "dmms_create_kanban_task",
-  "Create a new kanban task (project_id and deliverable_id are required by the backend)",
+  "Create a new kanban task. project_id and deliverable_id are required.",
   {
     title: z.string(),
     description: z.string().optional(),
     project_id: z.string().uuid(),
     deliverable_id: z.string().uuid(),
-    assignee_id: z.string().uuid().optional(),
-    status: z
-      .enum(["backlog", "todo", "in_progress", "review", "done"])
-      .optional(),
+    assignee_id: z.string().uuid().optional().describe("User ID to assign"),
+    status: z.enum(["backlog", "todo", "in_progress", "review", "done"]).optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     due_date: z.string().optional().describe("YYYY-MM-DD"),
     labels: z.array(z.string()).optional(),
   },
-  async (body) => {
-    const data = await api("POST", "/api/dmms/kanban", body);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  async ({ assignee_id, ...rest }) => {
+    const data = await api("POST", "/api/dmms/kanban", {
+      ...rest,
+      ...(assignee_id != null ? { assigned_to: assignee_id } : {}),
+    });
+    return fmtKanban(data);
   }
 );
 
 server.tool(
   "dmms_update_kanban_task",
-  "Update a kanban task (move status, reassign, etc.)",
+  "Update a kanban task (move status, reassign, set due date, etc.)",
   {
     id: z.string().uuid(),
     title: z.string().optional(),
     description: z.string().optional(),
-    assignee_id: z.string().uuid().nullable().optional(),
-    status: z
-      .enum(["backlog", "todo", "in_progress", "review", "done"])
-      .optional(),
+    assignee_id: z.string().uuid().nullable().optional().describe("User ID or null to unassign"),
+    status: z.enum(["backlog", "todo", "in_progress", "review", "done"]).optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-    due_date: z.string().optional().describe("YYYY-MM-DD or empty"),
+    due_date: z.string().optional().describe("YYYY-MM-DD or empty string to clear"),
     labels: z.array(z.string()).optional(),
   },
-  async ({ id, ...body }) => {
-    const data = await api("PATCH", `/api/dmms/kanban/${id}`, body);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  async ({ id, assignee_id, ...rest }) => {
+    const data = await api("PATCH", `/api/dmms/kanban/${id}`, {
+      ...rest,
+      ...(assignee_id !== undefined ? { assigned_to: assignee_id } : {}),
+    });
+    return fmtKanban(data);
   }
 );
 
@@ -389,7 +506,7 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("DELETE", `/api/dmms/kanban/${id}`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -399,7 +516,7 @@ server.tool(
   { id: z.string().uuid() },
   async ({ id }) => {
     const data = await api("GET", `/api/dmms/kanban/${id}/comments`);
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -414,7 +531,7 @@ server.tool(
     const data = await api("POST", `/api/dmms/kanban/${id}/comments`, {
       body: comment,
     });
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -429,7 +546,7 @@ server.tool(
       "GET",
       `/api/dmms/deliverables/${deliverable_id}/proposals`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -439,7 +556,7 @@ server.tool(
   {},
   async () => {
     const data = await api("GET", "/api/dmms/proposals/mine");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -458,7 +575,7 @@ server.tool(
       `/api/dmms/deliverables/${deliverable_id}/proposals`,
       body
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -471,7 +588,7 @@ server.tool(
       "POST",
       `/api/dmms/proposals/${proposal_id}/accept`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -488,7 +605,7 @@ server.tool(
       `/api/dmms/proposals/${proposal_id}/reject`,
       { reason }
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -500,7 +617,7 @@ server.tool(
   {},
   async () => {
     const data = await api("GET", "/api/dmms/submissions/pending");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -513,7 +630,7 @@ server.tool(
       "GET",
       `/api/dmms/deliverables/${deliverable_id}/submission`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -526,7 +643,7 @@ server.tool(
       "GET",
       `/api/dmms/deliverables/${deliverable_id}/submissions`
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -544,7 +661,7 @@ server.tool(
       `/api/dmms/deliverables/${deliverable_id}/submissions`,
       body
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -561,7 +678,7 @@ server.tool(
       `/api/dmms/submissions/${submission_id}/approve`,
       { feedback }
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -578,7 +695,7 @@ server.tool(
       `/api/dmms/submissions/${submission_id}/request-revision`,
       { feedback }
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -595,7 +712,7 @@ server.tool(
       `/api/dmms/submissions/${submission_id}/reject`,
       { reason }
     );
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -603,11 +720,17 @@ server.tool(
 
 server.tool(
   "dmms_marketplace",
-  "Browse open deliverables available for bidding",
-  {},
-  async () => {
-    const data = await api("GET", "/api/dmms/marketplace/bids");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  "Browse open deliverables available for bidding. visibility=all includes private ones (PM/Admin only).",
+  {
+    visibility: z
+      .enum(["public", "all"])
+      .optional()
+      .describe("'public' (default) shows public-only; 'all' also shows private"),
+  },
+  async ({ visibility }) => {
+    const qs = visibility === "all" ? "?visibility=all" : "";
+    const data = await api("GET", `/api/dmms/marketplace/bids${qs}`);
+    return fmt(data);
   }
 );
 
@@ -619,7 +742,7 @@ server.tool(
   {},
   async () => {
     const data = await api("GET", "/api/dmms/rewards/ledger");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
@@ -628,10 +751,19 @@ server.tool(
 server.tool(
   "dmms_list_users",
   "List all users (Admin only)",
-  {},
-  async () => {
-    const data = await api("GET", "/api/dmms/admin/users");
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  {
+    limit: z.number().int().min(1).max(200).optional(),
+    offset: z.number().int().min(0).optional(),
+  },
+  async (params) => {
+    const qs = new URLSearchParams();
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset != null) qs.set("offset", String(params.offset));
+    const data = await api(
+      "GET",
+      `/api/dmms/admin/users${qs.toString() ? `?${qs}` : ""}`
+    );
+    return fmt(data);
   }
 );
 
@@ -646,7 +778,7 @@ server.tool(
     const data = await api("PATCH", `/api/dmms/admin/users/${user_id}`, {
       role,
     });
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    return fmt(data);
   }
 );
 
