@@ -142,7 +142,12 @@ func (s *DeliverableService) AcceptProposal(proposalID string, pmID string) erro
 			}
 		}
 
-		// Assign all tasks of deliverable and its descendants to the contributor
+		// Hide ancestors whose children are all now covered
+			if err := s.autoHideFullyCoveredAncestors(tx, deliverable.ParentID); err != nil {
+				return err
+			}
+
+			// Assign all tasks of deliverable and its descendants to the contributor
 		allDeliverableIDs := append([]string{deliverable.ID}, descendantIDs...)
 		if err := tx.Table("dmms_tasks").
 			Where("deliverable_id IN ?", allDeliverableIDs).
@@ -298,6 +303,11 @@ func (s *DeliverableService) recomputeProjectBudget(tx *gorm.DB, projectID strin
 		if d.MaxBudget != old {
 			changed = append(changed, d)
 		}
+		// For leaf deliverables with an accepted bid, return the actual committed
+		// cost so parent/grandparent budgets shrink to reflect real spend.
+		if len(d.Children) == 0 && d.AcceptedBudget != nil {
+			return *d.AcceptedBudget
+		}
 		return d.MaxBudget
 	}
 
@@ -358,6 +368,46 @@ func (s *DeliverableService) BuildTree(projectID string) ([]*models.Deliverable,
 	return buildTree(all), nil
 }
 
+// autoHideFullyCoveredAncestors walks up the parent chain. When all children of an
+// ancestor are no longer open (draft/open_for_bids), that ancestor is hidden from the
+// marketplace (visibility → private), and the check continues upward.
+func (s *DeliverableService) autoHideFullyCoveredAncestors(tx *gorm.DB, parentID *string) error {
+	if parentID == nil {
+		return nil
+	}
+	txDeliv := s.deliverables.WithDB(tx)
+
+	parent, err := txDeliv.FindByID(*parentID)
+	if err != nil {
+		return err
+	}
+
+	children, err := txDeliv.ListChildren(*parentID)
+	if err != nil {
+		return err
+	}
+	if len(children) == 0 {
+		return s.autoHideFullyCoveredAncestors(tx, parent.ParentID)
+	}
+
+	for _, child := range children {
+		// A child is still "open" if it has a biddable status AND has not been
+		// auto-hidden (which would mean all of its own children are covered).
+		if (child.Status == models.DelivDraft || child.Status == models.DelivOpenForBids) &&
+			child.Visibility != models.VisibilityPrivate {
+			return nil
+		}
+	}
+
+	// All children covered — hide parent if it is currently in the marketplace
+	if parent.Status == models.DelivOpenForBids {
+		if err := txDeliv.UpdateVisibility(*parentID, models.VisibilityPrivate); err != nil {
+			return err
+		}
+	}
+	return s.autoHideFullyCoveredAncestors(tx, parent.ParentID)
+}
+
 func buildTree(flat []*models.Deliverable) []*models.Deliverable {
 	idx := make(map[string]*models.Deliverable, len(flat))
 	for _, d := range flat {
@@ -381,6 +431,9 @@ func buildTree(flat []*models.Deliverable) []*models.Deliverable {
 				sum += calc(c)
 			}
 			d.MaxBudget = sum
+		}
+		if len(d.Children) == 0 && d.AcceptedBudget != nil {
+			return *d.AcceptedBudget
 		}
 		return d.MaxBudget
 	}
